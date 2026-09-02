@@ -119,9 +119,11 @@ namespace AlphaTown.Gameplay.Bootstrap
                 return;
             }
 
-            // TODO: seed a new town from a NewGameDefinition asset (starting barn level,
-            // starting producers, tutorial state) instead of an empty world.
-            Log.Info("Bootstrap", "No save found. Starting a new town.");
+            // Starting balances from the currency definitions, then a first board of orders.
+            // TODO: extend with a NewGameDefinition asset (starting barn level, starting
+            // producers, tutorial state) rather than leaving the town otherwise empty.
+            _world.InitialiseNewPlayer();
+            Log.Info("Bootstrap", "No save found. Started a new town.");
         }
 
         public void SaveGame()

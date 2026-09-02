@@ -7,6 +7,7 @@ using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Production;
 using AlphaTown.Gameplay.Inventory;
+using AlphaTown.Gameplay.Progression;
 
 namespace AlphaTown.Gameplay.Production
 {
@@ -28,6 +29,7 @@ namespace AlphaTown.Gameplay.Production
         readonly IGameDatabase _database;
         readonly IGameClock _clock;
         readonly IEventBus _events;
+        readonly IUnlockGate _unlocks;
         readonly List<ProductionOrder> _orders = new List<ProductionOrder>(4);
         readonly List<ItemStack> _ready = new List<ItemStack>(4);
 
@@ -38,13 +40,15 @@ namespace AlphaTown.Gameplay.Production
             IProducerDefinition definition,
             IGameDatabase database,
             IGameClock clock,
-            IEventBus events)
+            IEventBus events,
+            IUnlockGate unlocks)
         {
             InstanceId = Guard.NotNullOrEmpty(instanceId, nameof(instanceId));
             _definition = Guard.NotNull(definition, nameof(definition));
             _database = Guard.NotNull(database, nameof(database));
             _clock = Guard.NotNull(clock, nameof(clock));
             _events = Guard.NotNull(events, nameof(events));
+            _unlocks = Guard.NotNull(unlocks, nameof(unlocks));
         }
 
         /// <summary>Unique per placed building. A town can hold several bakeries.</summary>
@@ -59,7 +63,10 @@ namespace AlphaTown.Gameplay.Production
         public int QueueCapacity => _definition.GetLevel(_level).QueueCapacity;
         public bool HasFreeQueueSlot => _orders.Count < QueueCapacity;
 
-        /// <summary>Queues an order, paying its inputs. False if the queue is full or goods are short.</summary>
+        /// <summary>
+        /// Queues an order, paying its inputs. False if the queue is full, the goods are short, or
+        /// the recipe is not unlocked at the current town level.
+        /// </summary>
         public bool TryEnqueue(string recipeId, IInventory inventory)
         {
             Guard.NotNull(inventory, nameof(inventory));
@@ -68,6 +75,11 @@ namespace AlphaTown.Gameplay.Production
             if (!HasFreeQueueSlot) return false;
             if (!CanProduce(recipeId)) return false;
             if (!_database.TryGetRecipe(recipeId, out var recipe)) return false;
+
+            // Enforced in the simulation, not just the UI. An unlock check that only exists in a
+            // screen is a check that a replayed or crafted command walks straight past.
+            if (!_unlocks.IsRecipeUnlocked(recipe)) return false;
+
             if (!inventory.TryRemoveAll(recipe.Inputs)) return false;
 
             _orders.Add(new ProductionOrder

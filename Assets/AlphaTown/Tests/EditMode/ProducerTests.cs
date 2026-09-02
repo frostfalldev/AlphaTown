@@ -4,6 +4,7 @@ using AlphaTown.Data.Items;
 using AlphaTown.Data.Recipes;
 using AlphaTown.Gameplay.Inventory;
 using AlphaTown.Gameplay.Production;
+using AlphaTown.Gameplay.Progression;
 using AlphaTown.Services.Timing;
 using NUnit.Framework;
 
@@ -16,6 +17,7 @@ namespace AlphaTown.Tests.EditMode
         FakeDatabase _database;
         BarnInventory _barn;
         Producer _producer;
+        FakeUnlockGate _unlocks;
 
         [SetUp]
         public void SetUp()
@@ -42,8 +44,9 @@ namespace AlphaTown.Tests.EditMode
                 new FakeProducerLevel(queueCapacity: 3, parallelSlots: 1)));
 
             _barn = new BarnInventory(_database, _database.DefaultStorage, events);
+            _unlocks = new FakeUnlockGate();
             _database.TryGetProducer("bakery", out var definition);
-            _producer = new Producer("bakery_1", definition, _database, _clock, events);
+            _producer = new Producer("bakery_1", definition, _database, _clock, events, _unlocks);
         }
 
         [Test]

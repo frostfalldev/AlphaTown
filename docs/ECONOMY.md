@@ -1,0 +1,181 @@
+# AlphaTown — the economic loop
+
+Three systems close the first loop:
+
+```
+        ┌────────────────────────────────────────────────────────────┐
+        │                                                            │
+        ▼                                                            │
+   ┌─────────┐   goods   ┌────────────┐  coins   ┌────────┐          │
+   │ Producer│──────────▶│ OrderBoard │─────────▶│ Wallet │          │
+   └─────────┘           └────────────┘          └────────┘          │
+        ▲                       │                     ▲              │
+        │                       │ XP                  │ level        │
+        │                       ▼                     │ rewards      │
+        │                ┌──────────────┐             │              │
+        │   unlocks      │TownProgression│────────────┘              │
+        └────────────────│  (IUnlockGate)│                           │
+                         └──────────────┘                           │
+                                 │  widens the order pool           │
+                                 └──────────────────────────────────┘
+```
+
+Produce → deliver → earn coins and XP → level up → unlock more recipes → produce more.
+`EconomicLoopTests.FullLoop_ProduceDeliverEarnUnlock` walks the whole circuit headlessly.
+
+---
+
+## Currency and the Wallet
+
+**Currency is never an item and never enters the barn.** It has no storage cost, no stack
+size, and — unlike items — every movement must carry an attribution reason.
+
+`CurrencyDefinition` assets describe each currency: `Soft` (coins), `Hard` (gems), or `Event`.
+The kind is not cosmetic: hard currency is bought with real money, so its sinks need auditing
+and its faucets need reconciling against revenue.
+
+### Reason codes are mandatory
+
+There is no overload that moves currency anonymously. Every entry point takes a reason:
+
+```csharp
+wallet.Grant(coins, 250, CurrencySource.OrderReward, order.OrderId);
+wallet.TrySpend(gems, 12, CurrencySink.ProductionSpeedUp, producer.InstanceId);
+```
+
+`CurrencySource` and `CurrencySink` are deliberately **separate enums** rather than one merged
+reason type, so the compiler enforces the split — a sink cannot be passed to a grant. Source/sink
+balance is the number economy tuning actually runs on.
+
+Both live in `AlphaTown.Data.Economy`, not Gameplay, so the analytics service in Services can
+speak the vocabulary without an upward reference.
+
+An untagged movement logs a warning and is **still recorded**, under `Unknown`. Losing the
+attribution is a bug; losing the money would be worse, and a faucet that vanishes from the
+numbers is invisible.
+
+### Source/sink tracking
+
+`CurrencyLedger` keeps lifetime totals per (currency × reason). It is bounded by the number of
+reasons the game actually uses — a few dozen — so it never grows with play time, which is why
+it can be persisted while individual transactions cannot.
+
+```csharp
+ledger.TotalFrom(coins, CurrencySource.OrderReward);   // faucet size
+ledger.TotalTo(coins, CurrencySink.BuildingPurchase);  // sink size
+ledger.TotalEarned(coins) - ledger.TotalSpent(coins);  // must equal the balance
+```
+
+That last identity is asserted in the tests. If it ever drifts, currency is being created or
+destroyed somewhere outside the wallet.
+
+Individual transactions go out as `CurrencyTransactionEvent`. An analytics adapter in Gameplay
+subscribes and forwards to a Services-side sink; the payload is all `Data` types, so nothing
+in Services needs to see a Gameplay type.
+
+### Events worth knowing
+
+| Event | Why it exists |
+| --- | --- |
+| `CurrencyBalanceChangedEvent` | What UI binds to. |
+| `CurrencyTransactionEvent` | Full attribution, for analytics. |
+| `CurrencyCappedEvent` | A grant was clipped by the currency's cap; the excess is lost. |
+| `CurrencySpendRejectedEvent` | The strongest purchase-intent signal in the game — the hook an offer surface listens on. |
+
+---
+
+## Progression
+
+`ProgressionCurve` is a ScriptableObject: XP per level, plus what reaching each level pays out.
+Never a formula in code — pacing is the biggest retention lever in this genre and gets retuned
+constantly.
+
+`TownProgression` grants XP with an `XpSource` reason code and cascades through as many levels as
+the grant covers, firing one `TownLevelUpEvent` per level. A single grant raising two or three
+levels is normal after a long absence, so anything celebrating a level up must cope with a burst.
+
+**XP earned at the level cap is banked, not discarded.** Caps get raised in live-ops updates, and
+raising one should immediately credit what players earned against it.
+
+### The unlock gate
+
+`ITownProgression` extends `IUnlockGate`, a deliberately narrow interface:
+
+```csharp
+bool IsRecipeUnlocked(IRecipeDefinition recipe);   // TownLevel >= recipe.UnlockLevel
+```
+
+`Producer` takes the gate, not the whole progression system — so production can be tested against
+a fixed level with no curve, wallet or event bus in sight. The check runs **inside the
+simulation**, not in a screen: an unlock enforced only in UI is one a replayed or crafted command
+walks straight past.
+
+---
+
+## Orders
+
+`OrderTemplateDefinition` describes the *shape* of an order — how many item types, what
+quantities, the time limit, the payout multipliers — not which items. The generator fills those
+in from **the outputs of recipes the player has unlocked**.
+
+That is the design decision worth keeping: the player can only ever be asked for something they
+can actually make, and the property holds automatically as content grows. No template needs
+revisiting when a recipe ships.
+
+### Rewards
+
+```
+coins = Σ(item.CoinValue × quantity) × template.CoinMultiplier
+xp    = Σ(item.XpValue   × quantity) × template.XpMultiplier
+```
+
+`IItemDefinition.CoinValue` is therefore the single number that prices an item across the whole
+economy. Change it and every order re-prices with it.
+
+Rewards are **baked into the order at generation time**, not recomputed on completion. If item
+values are retuned in a live-ops update, orders already on the board still pay what they promised
+— a player who stockpiled goods for a visible reward has to get that reward.
+
+A payout never rounds down to nothing: an order that asks for goods and pays zero coins reads as
+a bug whatever the multiplier says.
+
+### Time limits and expiry
+
+Absolute timestamps, like everything else. A board left alone for a week resolves in a single
+`Sync()`; nothing needs to have been running. Expiry fires `OrderExpiredEvent` on the next sync,
+which after a long absence can mean an event for an order that ran out days ago.
+
+### Order kinds
+
+`OrderKind` names Helicopter, Train, Ship and Event. Only **Helicopter** is wired up —
+one `OrderBoard` instance with a capacity of four. The others are named now so order data, save
+data and analytics do not need reshaping when they land; each becomes another `OrderBoard`.
+
+---
+
+## Tuning levers
+
+Everything below is data, changeable without a code change:
+
+| Lever | Where |
+| --- | --- |
+| Item price and XP worth | `ItemDefinition.CoinValue` / `XpValue` |
+| Level pacing and level rewards | `ProgressionCurve` |
+| Recipe gating | `RecipeDefinition.UnlockLevel` |
+| Order size, timers, payout scaling | `OrderTemplateDefinition` |
+| Starting balances and currency caps | `CurrencyDefinition` |
+
+Board capacity is still a constant (`GameWorld.HelicopterBoardCapacity`). It moves into data when
+board upgrades exist.
+
+## What is deliberately missing
+
+- **Rerolling an order costs nothing.** `OrderBoard.TryDiscard` is the hook;
+  `CurrencySink.OrderReroll` is the reason code waiting for it.
+- **Nothing spends coins yet.** Sinks are enumerated but unused until buildings and expansion
+  land — the economy currently has a faucet and no drain, which is expected at this stage and
+  will read as runaway inflation in the ledger until it is fixed.
+- **No offline order generation cadence.** The board refills instantly. Township-style pacing
+  wants a per-slot cooldown.
+- **Speed-ups are not priced.** `Producer.TrySpeedUp` and `TryFinishNow` work; what they cost
+  in gems is undesigned.

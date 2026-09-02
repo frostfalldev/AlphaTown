@@ -9,12 +9,18 @@ namespace AlphaTown.Gameplay.Saving
     /// Shaped for JsonUtility: [Serializable] classes, public fields, arrays instead of
     /// dictionaries, no polymorphism. Deliberately separate from the runtime types — runtime
     /// state is free to be restructured, save data is a contract with every installed build.
+    ///
+    /// Enums are persisted as ints so a value written by a newer build survives a round trip
+    /// through an older one rather than collapsing onto the zero member.
     /// </summary>
     [Serializable]
     public sealed class GameSaveData
     {
         public InventorySaveData Inventory = new InventorySaveData();
+        public WalletSaveData Wallet = new WalletSaveData();
+        public ProgressionSaveData Progression = new ProgressionSaveData();
         public ProducerSaveData[] Producers = Array.Empty<ProducerSaveData>();
+        public OrderBoardSaveData[] OrderBoards = Array.Empty<OrderBoardSaveData>();
     }
 
     [Serializable]
@@ -39,5 +45,69 @@ namespace AlphaTown.Gameplay.Saving
     {
         public string ItemId;
         public int Count;
+    }
+
+    [Serializable]
+    public sealed class WalletSaveData
+    {
+        public CurrencyAmountSaveData[] Balances = Array.Empty<CurrencyAmountSaveData>();
+
+        /// <summary>Lifetime source/sink aggregates. Fixed size regardless of how long play lasts.</summary>
+        public LedgerEntrySaveData[] Ledger = Array.Empty<LedgerEntrySaveData>();
+    }
+
+    [Serializable]
+    public sealed class CurrencyAmountSaveData
+    {
+        public string CurrencyId;
+        public int Amount;
+    }
+
+    [Serializable]
+    public sealed class LedgerEntrySaveData
+    {
+        public string CurrencyId;
+        public bool IsSource;
+        public int Reason;
+        public long Total;
+    }
+
+    [Serializable]
+    public sealed class ProgressionSaveData
+    {
+        public int Level = 1;
+        public long XpIntoLevel;
+        public long TotalXp;
+        public XpAttributionSaveData[] Attribution = Array.Empty<XpAttributionSaveData>();
+    }
+
+    [Serializable]
+    public sealed class XpAttributionSaveData
+    {
+        public int Source;
+        public long Total;
+    }
+
+    [Serializable]
+    public sealed class OrderBoardSaveData
+    {
+        public int Kind;
+        public int NextOrderNumber = 1;
+        public OrderSaveData[] Orders = Array.Empty<OrderSaveData>();
+    }
+
+    [Serializable]
+    public sealed class OrderSaveData
+    {
+        public string OrderId;
+        public string TemplateId;
+        public int Kind;
+        public ItemStackSaveData[] Requests = Array.Empty<ItemStackSaveData>();
+        public CurrencyAmountSaveData[] CurrencyRewards = Array.Empty<CurrencyAmountSaveData>();
+        public int XpReward;
+        public long CreatedAtTicks;
+
+        /// <summary>Zero means no time limit. Absolute, so an absence expires it correctly.</summary>
+        public long ExpiresAtTicks;
     }
 }

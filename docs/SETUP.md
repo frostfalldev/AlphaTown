@@ -86,8 +86,9 @@ differs.
 
 ### 3.5 Run the tests
 
-**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 19 tests covering the barn,
-production chains, the clock and save round trips. They need no scene and should take under a
+**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 52 tests covering the barn, production
+chains, the clock, the wallet and its ledger, town progression, order generation and expiry, save
+round trips, and the full economic loop end to end. They need no scene and should take under a
 second.
 
 ### 3.6 Switch the build target
@@ -114,13 +115,24 @@ Nothing is scene-bound yet, by design. When you want the simulation running:
 
 1. Create a `GameDatabase` asset: **Assets ▸ Create ▸ AlphaTown ▸ Game Database**, in
    `Assets/AlphaTown/Content/`.
-2. Create a `StorageDefinition` (**AlphaTown ▸ Economy ▸ Storage Definition**), add it to the
-   database's storages list and set it as the default storage.
-3. Add an empty GameObject to the scene, attach **GameRunner**, assign the database.
+2. Create the three entries `GameWorld` requires, and assign each in the database's
+   *Well-known entries* section as well as its content list — construction throws with a named
+   message if any is missing, rather than shipping a build where half the economy silently
+   does nothing:
+   - a `StorageDefinition` (**AlphaTown ▸ Economy ▸ Storage Definition**) as the default storage
+   - a `CurrencyDefinition` of kind **Soft** (coins) as the soft currency
+   - a `ProgressionCurve` (**AlphaTown ▸ Economy ▸ Progression Curve**)
+3. Optionally add a **Hard** `CurrencyDefinition` (gems) and one or more
+   `OrderTemplateDefinition` assets. Without a template the order board simply stays empty.
 4. Author items, recipes and producers under `Assets/AlphaTown/Content/` and register them.
+   Set `CoinValue` and `XpValue` on items — order payouts are derived from them.
+5. Add an empty GameObject to the scene, attach **GameRunner**, assign the database.
 
-`GameRunner` will load a save if one exists, catch up offline progress, and auto-save every 30
-seconds and on pause.
+`GameRunner` seeds a new town from the starting balances on the currency definitions, or loads a
+save if one exists and catches up offline progress. It auto-saves every 30 seconds and on pause.
+
+Order generation draws only from the outputs of recipes the player has unlocked, so a brand-new
+town with no level-1 recipe produces no orders. That is correct behaviour, not a bug.
 
 ---
 

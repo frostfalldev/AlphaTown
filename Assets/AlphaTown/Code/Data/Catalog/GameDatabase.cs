@@ -1,8 +1,11 @@
 using System.Collections.Generic;
 using AlphaTown.Core.Diagnostics;
 using AlphaTown.Data.Definitions;
+using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
+using AlphaTown.Data.Orders;
 using AlphaTown.Data.Production;
+using AlphaTown.Data.Progression;
 using AlphaTown.Data.Recipes;
 using AlphaTown.Data.Storage;
 using UnityEngine;
@@ -19,21 +22,81 @@ namespace AlphaTown.Data.Catalog
     [CreateAssetMenu(menuName = "AlphaTown/Game Database", fileName = "GameDatabase", order = 100)]
     public sealed class GameDatabase : ScriptableObject, IGameDatabase
     {
+        [Header("Content")]
         [SerializeField] ItemDefinition[] _items;
         [SerializeField] RecipeDefinition[] _recipes;
         [SerializeField] ProducerDefinition[] _producers;
         [SerializeField] StorageDefinition[] _storages;
+        [SerializeField] CurrencyDefinition[] _currencies;
+        [SerializeField] OrderTemplateDefinition[] _orderTemplates;
 
+        [Header("Well-known entries")]
         [SerializeField]
         [Tooltip("Barn the player starts with. Must also appear in the storages list.")]
         StorageDefinition _defaultStorage;
+
+        [SerializeField]
+        [Tooltip("Coins. Orders pay out in this. Must also appear in the currencies list.")]
+        CurrencyDefinition _softCurrency;
+
+        [SerializeField]
+        [Tooltip("Gems. Must also appear in the currencies list.")]
+        CurrencyDefinition _hardCurrency;
+
+        [SerializeField] ProgressionCurve _progressionCurve;
 
         Dictionary<string, IItemDefinition> _itemsById;
         Dictionary<string, IRecipeDefinition> _recipesById;
         Dictionary<string, IProducerDefinition> _producersById;
         Dictionary<string, IStorageDefinition> _storagesById;
+        Dictionary<string, ICurrencyDefinition> _currenciesById;
+        Dictionary<string, IOrderTemplateDefinition> _orderTemplatesById;
+
+        IItemDefinition[] _itemList;
+        IRecipeDefinition[] _recipeList;
+        ICurrencyDefinition[] _currencyList;
+        IOrderTemplateDefinition[] _orderTemplateList;
 
         public IStorageDefinition DefaultStorage => _defaultStorage;
+        public ICurrencyDefinition SoftCurrency => _softCurrency;
+        public ICurrencyDefinition HardCurrency => _hardCurrency;
+        public IProgressionCurve ProgressionCurve => _progressionCurve;
+
+        public IReadOnlyList<IItemDefinition> Items
+        {
+            get
+            {
+                EnsureIndexed();
+                return _itemList;
+            }
+        }
+
+        public IReadOnlyList<IRecipeDefinition> Recipes
+        {
+            get
+            {
+                EnsureIndexed();
+                return _recipeList;
+            }
+        }
+
+        public IReadOnlyList<ICurrencyDefinition> Currencies
+        {
+            get
+            {
+                EnsureIndexed();
+                return _currencyList;
+            }
+        }
+
+        public IReadOnlyList<IOrderTemplateDefinition> OrderTemplates
+        {
+            get
+            {
+                EnsureIndexed();
+                return _orderTemplateList;
+            }
+        }
 
         public bool TryGetItem(string id, out IItemDefinition item)
         {
@@ -59,6 +122,18 @@ namespace AlphaTown.Data.Catalog
             return _storagesById.TryGetValue(id ?? string.Empty, out storage);
         }
 
+        public bool TryGetCurrency(string id, out ICurrencyDefinition currency)
+        {
+            EnsureIndexed();
+            return _currenciesById.TryGetValue(id ?? string.Empty, out currency);
+        }
+
+        public bool TryGetOrderTemplate(string id, out IOrderTemplateDefinition template)
+        {
+            EnsureIndexed();
+            return _orderTemplatesById.TryGetValue(id ?? string.Empty, out template);
+        }
+
         /// <summary>Rebuilds the indexes. Call after hot-reloading content in the editor.</summary>
         public void Reindex()
         {
@@ -66,6 +141,14 @@ namespace AlphaTown.Data.Catalog
             _recipesById = Index<RecipeDefinition, IRecipeDefinition>(_recipes, "recipe");
             _producersById = Index<ProducerDefinition, IProducerDefinition>(_producers, "producer");
             _storagesById = Index<StorageDefinition, IStorageDefinition>(_storages, "storage");
+            _currenciesById = Index<CurrencyDefinition, ICurrencyDefinition>(_currencies, "currency");
+            _orderTemplatesById =
+                Index<OrderTemplateDefinition, IOrderTemplateDefinition>(_orderTemplates, "order template");
+
+            _itemList = ToArray(_itemsById);
+            _recipeList = ToArray(_recipesById);
+            _currencyList = ToArray(_currenciesById);
+            _orderTemplateList = ToArray(_orderTemplatesById);
         }
 
         void OnEnable() => _itemsById = null;
@@ -105,15 +188,33 @@ namespace AlphaTown.Data.Catalog
             return map;
         }
 
+        static TInterface[] ToArray<TInterface>(Dictionary<string, TInterface> map)
+        {
+            var result = new TInterface[map.Count];
+            map.Values.CopyTo(result, 0);
+            return result;
+        }
+
 #if UNITY_EDITOR
         void OnValidate()
         {
             _itemsById = null;
-            if (_defaultStorage == null) return;
 
-            // The default barn has to be reachable by id too, or a save cannot restore it.
-            if (_storages == null || System.Array.IndexOf(_storages, _defaultStorage) < 0)
-                Log.Warn("GameDatabase", "Default storage '" + _defaultStorage.name + "' is not in the storages list.");
+            WarnIfUnlisted(_defaultStorage, _storages, "Default storage");
+            WarnIfUnlisted(_softCurrency, _currencies, "Soft currency");
+            WarnIfUnlisted(_hardCurrency, _currencies, "Hard currency");
+
+            if (_progressionCurve == null)
+                Log.Warn("GameDatabase", "No progression curve assigned — town level cannot advance.");
+        }
+
+        /// <summary>A well-known entry must be reachable by id too, or a save cannot restore it.</summary>
+        static void WarnIfUnlisted<TAsset>(TAsset entry, TAsset[] list, string label) where TAsset : Object
+        {
+            if (entry == null) return;
+            if (list != null && System.Array.IndexOf(list, entry) >= 0) return;
+
+            Log.Warn("GameDatabase", label + " '" + entry.name + "' is not in its content list.");
         }
 #endif
     }

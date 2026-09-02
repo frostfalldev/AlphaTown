@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
 using AlphaTown.Data.Catalog;
+using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
+using AlphaTown.Data.Orders;
 using AlphaTown.Data.Production;
+using AlphaTown.Data.Progression;
 using AlphaTown.Data.Recipes;
 using AlphaTown.Data.Storage;
+using AlphaTown.Gameplay.Progression;
 using AlphaTown.Services.Save;
 
 namespace AlphaTown.Tests.EditMode
@@ -13,15 +17,18 @@ namespace AlphaTown.Tests.EditMode
     /// Plain-object stand-ins for the ScriptableObject definitions.
     ///
     /// Nothing here touches Unity assets, which is the whole reason the gameplay systems depend
-    /// on interfaces: a test builds a content set in three lines instead of importing a project.
+    /// on interfaces: a test builds a content set in a few lines instead of importing a project.
     /// </summary>
     internal sealed class FakeItem : IItemDefinition
     {
-        public FakeItem(string id, int storageCost = 1, bool isStorable = true)
+        public FakeItem(string id, int storageCost = 1, bool isStorable = true,
+                        int coinValue = 10, int xpValue = 2)
         {
             Id = id;
             StorageCost = storageCost;
             IsStorable = isStorable;
+            CoinValue = coinValue;
+            XpValue = xpValue;
         }
 
         public string Id { get; }
@@ -29,23 +36,27 @@ namespace AlphaTown.Tests.EditMode
         public ItemCategory Category => ItemCategory.Ingredient;
         public int StorageCost { get; }
         public bool IsStorable { get; }
+        public int CoinValue { get; }
+        public int XpValue { get; }
     }
 
     internal sealed class FakeRecipe : IRecipeDefinition
     {
-        public FakeRecipe(string id, TimeSpan duration, ItemStack[] inputs, ItemStack[] outputs)
+        public FakeRecipe(string id, TimeSpan duration, ItemStack[] inputs, ItemStack[] outputs,
+                          int unlockLevel = 1)
         {
             Id = id;
             Duration = duration;
             Inputs = inputs ?? Array.Empty<ItemStack>();
             Outputs = outputs ?? Array.Empty<ItemStack>();
+            UnlockLevel = unlockLevel;
         }
 
         public string Id { get; }
         public IReadOnlyList<ItemStack> Inputs { get; }
         public IReadOnlyList<ItemStack> Outputs { get; }
         public TimeSpan Duration { get; }
-        public int UnlockLevel => 1;
+        public int UnlockLevel { get; }
     }
 
     internal sealed class FakeProducerLevel : IProducerLevel
@@ -66,7 +77,8 @@ namespace AlphaTown.Tests.EditMode
     {
         readonly IProducerLevel[] _levels;
 
-        public FakeProducerDefinition(string id, IReadOnlyList<IRecipeDefinition> recipes, params IProducerLevel[] levels)
+        public FakeProducerDefinition(string id, IReadOnlyList<IRecipeDefinition> recipes,
+                                      params IProducerLevel[] levels)
         {
             Id = id;
             Recipes = recipes ?? Array.Empty<IRecipeDefinition>();
@@ -106,24 +118,128 @@ namespace AlphaTown.Tests.EditMode
         }
     }
 
+    internal sealed class FakeCurrency : ICurrencyDefinition
+    {
+        public FakeCurrency(string id, CurrencyKind kind = CurrencyKind.Soft,
+                            int startingAmount = 0, int maxAmount = 0)
+        {
+            Id = id;
+            Kind = kind;
+            StartingAmount = startingAmount;
+            MaxAmount = maxAmount;
+        }
+
+        public string Id { get; }
+        public string DisplayNameKey => "currency." + Id;
+        public CurrencyKind Kind { get; }
+        public int StartingAmount { get; }
+        public int MaxAmount { get; }
+    }
+
+    internal sealed class FakeProgressionCurve : IProgressionCurve
+    {
+        static readonly CurrencyAmount[] None = Array.Empty<CurrencyAmount>();
+
+        readonly int[] _xpToAdvance;
+        readonly Dictionary<int, CurrencyAmount[]> _rewards = new Dictionary<int, CurrencyAmount[]>();
+
+        /// <summary>One entry per level. The last entry is the cap, and its value is unused.</summary>
+        public FakeProgressionCurve(params int[] xpToAdvance)
+        {
+            _xpToAdvance = xpToAdvance != null && xpToAdvance.Length > 0 ? xpToAdvance : new[] { 100 };
+        }
+
+        public FakeProgressionCurve WithRewardForReaching(int level, params CurrencyAmount[] rewards)
+        {
+            _rewards[level] = rewards ?? None;
+            return this;
+        }
+
+        public int MaxLevel => _xpToAdvance.Length;
+
+        public int XpToAdvance(int level)
+        {
+            if (level >= _xpToAdvance.Length) return 0;
+            return _xpToAdvance[level < 1 ? 0 : level - 1];
+        }
+
+        public IReadOnlyList<CurrencyAmount> RewardsForReaching(int level) =>
+            _rewards.TryGetValue(level, out var rewards) ? rewards : None;
+    }
+
+    internal sealed class FakeOrderTemplate : IOrderTemplateDefinition
+    {
+        public FakeOrderTemplate(string id, OrderKind kind = OrderKind.Helicopter)
+        {
+            Id = id;
+            Kind = kind;
+        }
+
+        public string Id { get; }
+        public OrderKind Kind { get; }
+        public int UnlockLevel { get; set; } = 1;
+        public int MinItemTypes { get; set; } = 1;
+        public int MaxItemTypes { get; set; } = 1;
+        public int MinQuantityPerItem { get; set; } = 1;
+        public int MaxQuantityPerItem { get; set; } = 1;
+        public TimeSpan TimeLimit { get; set; } = TimeSpan.Zero;
+        public float CoinMultiplier { get; set; } = 1f;
+        public float XpMultiplier { get; set; } = 1f;
+        public int BonusHardCurrency { get; set; }
+    }
+
+    /// <summary>A gate pinned to a fixed level, for testing production without a whole economy.</summary>
+    internal sealed class FakeUnlockGate : IUnlockGate
+    {
+        public FakeUnlockGate(int townLevel = 99)
+        {
+            TownLevel = townLevel;
+        }
+
+        public int TownLevel { get; set; }
+
+        public bool IsUnlocked(int requiredLevel) => TownLevel >= requiredLevel;
+
+        public bool IsRecipeUnlocked(IRecipeDefinition recipe) => recipe != null && IsUnlocked(recipe.UnlockLevel);
+    }
+
     internal sealed class FakeDatabase : IGameDatabase
     {
         readonly Dictionary<string, IItemDefinition> _items = new Dictionary<string, IItemDefinition>();
         readonly Dictionary<string, IRecipeDefinition> _recipes = new Dictionary<string, IRecipeDefinition>();
         readonly Dictionary<string, IProducerDefinition> _producers = new Dictionary<string, IProducerDefinition>();
         readonly Dictionary<string, IStorageDefinition> _storages = new Dictionary<string, IStorageDefinition>();
+        readonly Dictionary<string, ICurrencyDefinition> _currencies = new Dictionary<string, ICurrencyDefinition>();
+
+        readonly Dictionary<string, IOrderTemplateDefinition> _orderTemplates =
+            new Dictionary<string, IOrderTemplateDefinition>();
+
+        readonly List<IItemDefinition> _itemList = new List<IItemDefinition>();
+        readonly List<IRecipeDefinition> _recipeList = new List<IRecipeDefinition>();
+        readonly List<ICurrencyDefinition> _currencyList = new List<ICurrencyDefinition>();
+        readonly List<IOrderTemplateDefinition> _orderTemplateList = new List<IOrderTemplateDefinition>();
 
         public IStorageDefinition DefaultStorage { get; set; }
+        public ICurrencyDefinition SoftCurrency { get; set; }
+        public ICurrencyDefinition HardCurrency { get; set; }
+        public IProgressionCurve ProgressionCurve { get; set; }
+
+        public IReadOnlyList<IItemDefinition> Items => _itemList;
+        public IReadOnlyList<IRecipeDefinition> Recipes => _recipeList;
+        public IReadOnlyList<ICurrencyDefinition> Currencies => _currencyList;
+        public IReadOnlyList<IOrderTemplateDefinition> OrderTemplates => _orderTemplateList;
 
         public FakeDatabase WithItem(IItemDefinition item)
         {
             _items[item.Id] = item;
+            _itemList.Add(item);
             return this;
         }
 
         public FakeDatabase WithRecipe(IRecipeDefinition recipe)
         {
             _recipes[recipe.Id] = recipe;
+            _recipeList.Add(recipe);
             return this;
         }
 
@@ -140,6 +256,29 @@ namespace AlphaTown.Tests.EditMode
             return this;
         }
 
+        public FakeDatabase WithCurrency(ICurrencyDefinition currency)
+        {
+            _currencies[currency.Id] = currency;
+            _currencyList.Add(currency);
+
+            if (currency.Kind == CurrencyKind.Soft && SoftCurrency == null) SoftCurrency = currency;
+            if (currency.Kind == CurrencyKind.Hard && HardCurrency == null) HardCurrency = currency;
+            return this;
+        }
+
+        public FakeDatabase WithOrderTemplate(IOrderTemplateDefinition template)
+        {
+            _orderTemplates[template.Id] = template;
+            _orderTemplateList.Add(template);
+            return this;
+        }
+
+        public FakeDatabase WithProgressionCurve(IProgressionCurve curve)
+        {
+            ProgressionCurve = curve;
+            return this;
+        }
+
         public bool TryGetItem(string id, out IItemDefinition item) =>
             _items.TryGetValue(id ?? string.Empty, out item);
 
@@ -151,6 +290,12 @@ namespace AlphaTown.Tests.EditMode
 
         public bool TryGetStorage(string id, out IStorageDefinition storage) =>
             _storages.TryGetValue(id ?? string.Empty, out storage);
+
+        public bool TryGetCurrency(string id, out ICurrencyDefinition currency) =>
+            _currencies.TryGetValue(id ?? string.Empty, out currency);
+
+        public bool TryGetOrderTemplate(string id, out IOrderTemplateDefinition template) =>
+            _orderTemplates.TryGetValue(id ?? string.Empty, out template);
     }
 
     /// <summary>Save store backed by a dictionary, so save tests never touch the filesystem.</summary>

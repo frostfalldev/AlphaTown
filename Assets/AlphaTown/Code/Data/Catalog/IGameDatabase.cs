@@ -1,5 +1,9 @@
+using System.Collections.Generic;
+using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
+using AlphaTown.Data.Orders;
 using AlphaTown.Data.Production;
+using AlphaTown.Data.Progression;
 using AlphaTown.Data.Recipes;
 using AlphaTown.Data.Storage;
 
@@ -15,8 +19,25 @@ namespace AlphaTown.Data.Catalog
         bool TryGetRecipe(string id, out IRecipeDefinition recipe);
         bool TryGetProducer(string id, out IProducerDefinition producer);
         bool TryGetStorage(string id, out IStorageDefinition storage);
+        bool TryGetCurrency(string id, out ICurrencyDefinition currency);
+        bool TryGetOrderTemplate(string id, out IOrderTemplateDefinition template);
+
+        // Enumeration, for systems that select content rather than look it up by id — order
+        // generation needs to know what the player can currently produce.
+        IReadOnlyList<IItemDefinition> Items { get; }
+        IReadOnlyList<IRecipeDefinition> Recipes { get; }
+        IReadOnlyList<ICurrencyDefinition> Currencies { get; }
+        IReadOnlyList<IOrderTemplateDefinition> OrderTemplates { get; }
 
         /// <summary>The starting barn. TODO: multiple storages (barn / silo) once inventory splits.</summary>
         IStorageDefinition DefaultStorage { get; }
+
+        /// <summary>Coins. The currency orders pay out in.</summary>
+        ICurrencyDefinition SoftCurrency { get; }
+
+        /// <summary>Gems. Premium, and audited accordingly.</summary>
+        ICurrencyDefinition HardCurrency { get; }
+
+        IProgressionCurve ProgressionCurve { get; }
     }
 }

@@ -33,7 +33,8 @@ anything else.
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Gameplay      the simulation        │
-        │   BarnInventory · Producer · GameWorld        │
+        │   BarnInventory · Producer · Wallet           │
+        │   TownProgression · OrderBoard · GameWorld    │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Services      clock, save, remote   │
@@ -41,7 +42,9 @@ anything else.
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Data          authored content      │
-        │   ItemDefinition · RecipeDefinition · …       │
+        │   ItemDefinition · RecipeDefinition           │
+        │   CurrencyDefinition · ProgressionCurve       │
+        │   OrderTemplateDefinition · reason-code enums │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Core          no dependencies       │
@@ -145,6 +148,38 @@ consume half the ingredients.
 `Sync()` is the whole catch-up algorithm and is safe to call at any time. `GameWorld` polls it
 once a second; per-frame would burn battery for nothing, since state is timestamp-derived.
 
+### Economy — `AlphaTown.Gameplay.Economy`
+
+`Wallet` holds currency balances; `CurrencyLedger` holds lifetime source/sink totals. Currency is
+never an item and never enters the barn.
+
+Every entry point demands a reason code — there is no overload that moves currency anonymously —
+and each movement records to the ledger and publishes a transaction event. The taxonomy
+(`CurrencySource`, `CurrencySink`, `CurrencyTransaction`) lives in **Data**, not Gameplay, so the
+analytics service in Services can speak it without an upward reference.
+
+### Progression — `AlphaTown.Gameplay.Progression`
+
+`TownProgression` owns town level and XP against an authored `ProgressionCurve`, cascading through
+as many levels as one grant covers and paying the curve's rewards into the wallet.
+
+It implements `IUnlockGate`, a narrow interface `Producer` takes instead of the whole progression
+system — which is why production can be tested against a fixed level with no curve, wallet or
+event bus in sight. Unlocks are enforced in the simulation, not only in UI.
+
+### Orders — `AlphaTown.Gameplay.Orders`
+
+`OrderBoard` is where the loop closes: goods leave the barn, coins and XP come back, XP raises the
+level, and the level widens the pool the next order is drawn from.
+
+`OrderGenerator` builds each order's request list from the outputs of **unlocked recipes**, so the
+player can only ever be asked for something they can make — a property that holds automatically as
+content grows. Rewards are baked in at generation time so a live-ops retune cannot retroactively
+cut a reward a player is already working toward.
+
+Full detail, including the reason-code taxonomy and the tuning levers, is in
+[ECONOMY.md](ECONOMY.md).
+
 ### Save — `AlphaTown.Services.Save`
 
 ```
@@ -165,6 +200,11 @@ Deliberate choices:
   has already paid for is worse than failing to load.
 - **DTOs are separate from runtime types.** Runtime state is free to be restructured; save data is
   a contract with every installed build.
+- **Enums persist as ints.** A value written by a newer build survives a round trip through an
+  older one instead of collapsing onto the zero member and corrupting a lifetime total.
+
+`SaveSchemaVersion` stays at 1 until the first breaking change *after* launch. Bumping it
+pre-launch would only create migration debt for saves that do not exist.
 
 `GameRunner` saves on `OnApplicationPause(true)` — the save point that actually matters, since
 Android can kill a backgrounded app without ever calling `OnApplicationQuit`.
@@ -187,7 +227,12 @@ what they need through their constructors.
 
 `Assets/AlphaTown/Tests/EditMode` covers the barn's capacity and atomicity rules, the production
 chain (including a twenty-hour absence resolving in one `Sync`), clock pause/resume continuity,
-and a save round trip through the real serializer.
+wallet atomicity and ledger reconciliation, XP cascading and cap behaviour, order generation and
+expiry, a save round trip through the real serializer, and the full economic loop end to end.
+
+`TestContent` is tuned so exactly one item is producible at town level 1, which makes generated
+orders deterministic without depending on an RNG seed. Randomness is injected into `GameWorld`
+for the same reason.
 
 No scene, no assets, no play mode. If a new gameplay system cannot be tested that way, it has a
 dependency it should not have.

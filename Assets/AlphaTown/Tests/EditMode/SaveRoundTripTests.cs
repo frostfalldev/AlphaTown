@@ -1,5 +1,6 @@
 using System;
 using AlphaTown.Core.Events;
+using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Recipes;
 using AlphaTown.Gameplay.Production;
@@ -36,7 +37,9 @@ namespace AlphaTown.Tests.EditMode
                 .WithItem(new FakeItem("flour"))
                 .WithItem(new FakeItem("bread"))
                 .WithRecipe(recipe)
-                .WithStorage(new FakeStorage(100));
+                .WithStorage(new FakeStorage(100))
+                .WithCurrency(new FakeCurrency("coins", CurrencyKind.Soft))
+                .WithProgressionCurve(new FakeProgressionCurve(100));
 
             _database.WithProducer(new FakeProducerDefinition(
                 "bakery",

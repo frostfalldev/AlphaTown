@@ -6,118 +6,95 @@ using UnityEngine;
 namespace AlphaTown.UI.Interaction
 {
     /// <summary>
-    /// Drag across the fields to harvest them, the way a sickle would cut.
+    /// Cuts every ripe crop the finger passes over, and draws the blade doing it.
     ///
-    /// The feel of the whole farming loop lives here: tapping ten fields is a chore, sweeping a
-    /// finger over them is the reason to come back. Each cell may only be cut once per swipe, so
-    /// dragging back over a field the player just cleared does not fight the auto-replant.
+    /// No longer reads input. <see cref="TownGestures"/> decides that a drag is a harvest — because
+    /// it began on a crop that was ready — and drives this; before, it polled the pointer itself
+    /// and fought the camera for the same finger.
     ///
-    /// The simulation is untouched — every cut goes through <c>TownCommands.HarvestAt</c>, which
-    /// applies the same barn-space and readiness rules a tap would.
+    /// Each cell is cut at most once per swipe, so dragging back across a field the player just
+    /// cleared does not fight the auto-replant. Every cut goes through
+    /// <c>TownCommands.HarvestAt</c>, so the same barn-space and readiness rules apply as a tap.
     /// </summary>
     public sealed class SickleSwipeHarvestController : MonoBehaviour
     {
         [SerializeField] GameRunner _runner;
-        [SerializeField] Camera _camera;
-
-        [Header("Feel")]
-        [SerializeField, Min(1f)]
-        [Tooltip("Screen pixels the finger must travel before a press becomes a swipe, so a tap " +
-                 "to select does not harvest what it landed on.")]
-        float _swipeThresholdPixels = 26f;
 
         [Header("Visual Feedback")]
         [SerializeField] TrailRenderer _sickleTrail;
         [SerializeField] ParticleSystem _swipeParticles;
 
+        [Header("Sampling")]
+        [SerializeField, Min(0.05f)]
+        [Tooltip("World units between samples along the swipe. Smaller catches more tiles on a " +
+                 "fast flick; larger costs less.")]
+        float _sampleSpacing = 0.25f;
+
+        [SerializeField, Min(2)]
+        [Tooltip("Cap on samples per frame, so a teleporting pointer cannot stall a frame.")]
+        int _maxSamplesPerSegment = 64;
+
         readonly HashSet<GridPosition> _cutThisSwipe = new HashSet<GridPosition>();
 
-        Vector2 _pressPosition;
-        bool _pressed;
+        Vector3 _lastSamplePosition;
         bool _isSwiping;
         int _harvestedThisSwipe;
 
         void Awake()
         {
-            if (_camera == null) _camera = Camera.main;
             if (_runner == null) _runner = FindAnyObjectByType<GameRunner>();
             if (_sickleTrail != null) _sickleTrail.emitting = false;
         }
 
-        void Update()
-        {
-            if (_runner == null || _runner.Commands == null || _camera == null) return;
-
-            if (Input.touchCount > 0)
-            {
-                var touch = Input.GetTouch(0);
-
-                if (touch.phase == TouchPhase.Began) BeginPress(touch.position);
-                else if (touch.phase == TouchPhase.Moved) DragTo(touch.position);
-                else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled) EndSwipe();
-
-                return;
-            }
-
-#if UNITY_EDITOR || UNITY_STANDALONE
-            if (Input.GetMouseButtonDown(0)) BeginPress(Input.mousePosition);
-            else if (Input.GetMouseButton(0)) DragTo(Input.mousePosition);
-            else if (Input.GetMouseButtonUp(0)) EndSwipe();
-#endif
-        }
-
-        void BeginPress(Vector2 screenPosition)
-        {
-            _pressed = true;
-            _isSwiping = false;
-            _pressPosition = screenPosition;
-            _harvestedThisSwipe = 0;
-            _cutThisSwipe.Clear();
-        }
-
-        void DragTo(Vector2 screenPosition)
-        {
-            if (!_pressed) return;
-
-            // A swipe only begins once the finger has actually moved. Below the threshold this is
-            // still a tap, and the tap handler owns it.
-            if (!_isSwiping)
-            {
-                if ((screenPosition - _pressPosition).sqrMagnitude < _swipeThresholdPixels * _swipeThresholdPixels)
-                    return;
-
-                BeginSwipe(ScreenToWorld(_pressPosition));
-            }
-
-            var world = ScreenToWorld(screenPosition);
-            if (_sickleTrail != null) _sickleTrail.transform.position = world;
-
-            if (_swipeParticles != null && !_swipeParticles.isPlaying)
-            {
-                _swipeParticles.transform.position = world;
-                _swipeParticles.Play();
-            }
-
-            CutAt(world);
-        }
-
-        void BeginSwipe(Vector3 worldPosition)
+        public void BeginSwipe(Vector3 worldPosition)
         {
             _isSwiping = true;
+            _harvestedThisSwipe = 0;
+            _cutThisSwipe.Clear();
+            _lastSamplePosition = worldPosition;
 
-            if (_sickleTrail == null) return;
-
-            _sickleTrail.transform.position = worldPosition;
-            _sickleTrail.Clear();
-            _sickleTrail.emitting = true;
+            if (_sickleTrail != null)
+            {
+                _sickleTrail.transform.position = worldPosition;
+                _sickleTrail.Clear();
+                _sickleTrail.emitting = true;
+            }
 
             CutAt(worldPosition);
         }
 
-        void EndSwipe()
+        /// <summary>
+        /// Continues the swipe to a new point, cutting everything on the way.
+        ///
+        /// The path between two frames is walked rather than just its endpoint sampled. A finger
+        /// crossing the screen in a flick moves several tiles per frame, and sampling only where
+        /// it landed would skip most of the row — which reads, fairly, as the sickle not working.
+        /// </summary>
+        public void CutAlong(Vector3 worldPosition)
         {
-            _pressed = false;
+            if (!_isSwiping) return;
 
+            if (_sickleTrail != null) _sickleTrail.transform.position = worldPosition;
+
+            if (_swipeParticles != null)
+            {
+                _swipeParticles.transform.position = worldPosition;
+                if (!_swipeParticles.isPlaying) _swipeParticles.Play();
+            }
+
+            var travelled = Vector3.Distance(_lastSamplePosition, worldPosition);
+            var steps = Mathf.Clamp(Mathf.CeilToInt(travelled / _sampleSpacing), 1, _maxSamplesPerSegment);
+
+            for (var i = 1; i <= steps; i++)
+            {
+                CutAt(Vector3.Lerp(_lastSamplePosition, worldPosition, (float)i / steps));
+            }
+
+            _lastSamplePosition = worldPosition;
+        }
+
+        public void EndSwipe()
+        {
             if (_sickleTrail != null) _sickleTrail.emitting = false;
             if (!_isSwiping) return;
 
@@ -132,16 +109,8 @@ namespace AlphaTown.UI.Interaction
             var cell = IsoGridMath.WorldToGrid(worldPosition);
             if (!_cutThisSwipe.Add(cell)) return;
 
-            if (_runner.Commands.HarvestAt(cell)) _harvestedThisSwipe++;
-        }
-
-        Vector3 ScreenToWorld(Vector2 screenPosition)
-        {
-            var world = _camera.ScreenToWorldPoint(
-                new Vector3(screenPosition.x, screenPosition.y, -_camera.transform.position.z));
-
-            world.z = 0f;
-            return world;
+            if (_runner != null && _runner.Commands != null && _runner.Commands.HarvestAt(cell))
+                _harvestedThisSwipe++;
         }
     }
 }

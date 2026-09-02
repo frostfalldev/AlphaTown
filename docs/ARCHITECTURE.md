@@ -31,7 +31,7 @@ anything else.
         ┌──────────────────────────────────────────────┐
         │ AlphaTown.UI            screens, HUD, views   │
         │   IsoCameraController · TownView              │
-        │   TownTapInput · SickleSwipeHarvestController │
+        │   PointerInput · TownGestures · Sickle…       │
         │   TownHud and its panels                      │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
@@ -354,10 +354,65 @@ Four pieces, none of which the simulation knows about:
   `IsoGridMath`.
 - **`TownView`** — reconciles sprites against the building list every frame rather than listening
   for events. A view that is wrong is wrong for one frame, not until the next reload.
-- **`TownTapInput` / `SickleSwipeHarvestController`** — screen to world to cell is arithmetic, so a
-  town of a thousand tiles needs no colliders and no raycasts. A tap selects; a drag harvests.
+- **`PointerInput`** — where touches come from, whichever input backend the project is set to.
+  Nothing else in the project names one. See *Input backends* below.
+- **`TownGestures`** — the single place a touch is interpreted. Screen to world to cell is
+  arithmetic, so a town of a thousand tiles needs no colliders and no raycasts.
 - **`TownHud`** — UI Toolkit, built in C# with inline styles. No UXML or USS while the layout is
-  still moving: one file to change, and no asset GUIDs to go missing.
+  still moving: one file to change, and no asset GUIDs to go missing. Its layout containers are
+  `PickingMode.Ignore` so only real widgets block the world; a UI Toolkit root fills the screen and
+  is pickable by default, which would otherwise swallow every touch in the game.
+
+#### Input backends
+
+Unity has two, and which is live is a project setting. Reading `UnityEngine.Input` directly
+**throws at runtime** when that setting is "Input System Package (New)" — the Unity 6 default —
+and compiles perfectly either way. That shipped once: pan, zoom and swipe were all dead in an APK
+while the HUD kept working, because UI Toolkit speaks both and the game code spoke one.
+
+So no gameplay code names a backend. `PointerInput` is the only thing that does:
+
+| Active Input Handling | What serves pointers |
+| --- | --- |
+| Input Manager (Old) | `LegacyPointerSource`, compiled under `ENABLE_LEGACY_INPUT_MANAGER` |
+| Both | `LegacyPointerSource` — one proven path rather than two arguing |
+| Input System Package (New) | `InputSystemPointerSource`, which registers itself at startup |
+
+The Input System source lives in its own assembly with
+`defineConstraints: ["ENABLE_INPUT_SYSTEM", "!ENABLE_LEGACY_INPUT_MANAGER"]`. When those do not
+hold, Unity skips the assembly and never tries to resolve its reference to `Unity.InputSystem` —
+so a project without the package still compiles. It registers itself through
+`PointerInput.SetSource` rather than being referenced, because `AlphaTown.UI` cannot depend on an
+assembly that may not exist.
+
+`IPointerSource` reports only *which pointers are down and where*, never began/moved/ended. Phase
+enums differ between the backends in ways that are easy to mirror slightly wrong, and every
+consumer has to track the previous frame anyway — so the phases are derived once, in
+`TownGestures`.
+
+#### One reader, one gesture
+
+`TownGestures` is the only thing that polls input. Before, the camera, the tap handler and the
+sickle each polled the same finger and each acted on it, so one drag panned the map *and*
+harvested every crop it crossed.
+
+A press now resolves to exactly one gesture and stays there until the finger lifts:
+
+| Started on | Moved past the slop? | Becomes |
+| --- | --- | --- |
+| A HUD widget | — | Nothing; the UI has it |
+| A crop that is ready | yes | Sickle swipe |
+| Anything else | yes | Camera pan |
+| Anywhere | no | Tap — select |
+| (two fingers) | — | Pinch zoom, cancelling whatever the first finger was doing |
+
+Where the drag *began* decides, which needs no mode switch and no tool button, and can never leave
+the camera stuck behind a tool the player forgot was selected.
+
+`IsoCameraController` no longer reads input at all — it takes `BeginPan`/`PanByScreenDelta`/
+`EndPan`/`ZoomByPinch` and keeps its damping, inertia and bounds clamping. That also means the
+camera can be driven from a test, a tutorial or a "focus on this building" button without faking
+input.
 
 ### Composition — `AlphaTown.Gameplay.Bootstrap`
 

@@ -64,13 +64,19 @@ namespace AlphaTown.EditorTools.Setup
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            CreateCamera(out var camera);
+            CreateCamera(out var camera, out var cameraController);
             CreateLight();
 
             var runner = CreateRunner(database);
-            var selection = CreateInput(runner, camera);
+
+            // Selection first, the HUD next, then the gesture reader last — it needs a reference
+            // to both, because it hit-tests the HUD before letting a touch reach the town.
+            var input = new GameObject("Input");
+            var selection = input.AddComponent<TownSelection>();
+
+            var hud = CreateHud(runner, selection);
+            CreateGestureInput(input, runner, camera, cameraController, hud);
             CreateTownView(runner, selection);
-            CreateHud(runner, selection);
 
             AssetAuthoring.EnsureFolder(Path.GetDirectoryName(ScenePath)?.Replace('\\', '/'));
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -79,7 +85,7 @@ namespace AlphaTown.EditorTools.Setup
             Debug.Log("[AlphaTown] Playable scene written to " + ScenePath + ".");
         }
 
-        static void CreateCamera(out Camera camera)
+        static void CreateCamera(out Camera camera, out IsoCameraController control)
         {
             var go = new GameObject("Main Camera");
             go.tag = "MainCamera";
@@ -97,7 +103,7 @@ namespace AlphaTown.EditorTools.Setup
 
             go.AddComponent<AudioListener>();
 
-            var control = go.AddComponent<IsoCameraController>();
+            control = go.AddComponent<IsoCameraController>();
             control.SetGridSize(new Vector2Int(24, 24));
         }
 
@@ -132,25 +138,27 @@ namespace AlphaTown.EditorTools.Setup
             return runner;
         }
 
-        static TownSelection CreateInput(GameRunner runner, Camera camera)
+        /// <summary>
+        /// One gesture reader, driving the camera and the sickle. They used to poll the pointer
+        /// themselves and both act on the same finger, so a drag panned the map and harvested
+        /// everything it crossed at once.
+        /// </summary>
+        static void CreateGestureInput(GameObject input, GameRunner runner, Camera camera,
+                                       IsoCameraController cameraController, TownHud hud)
         {
-            var go = new GameObject("Input");
-
-            var selection = go.AddComponent<TownSelection>();
-
-            var tap = go.AddComponent<TownTapInput>();
-            var tapSerialized = AssetAuthoring.Edit(tap);
-            AssetAuthoring.SetReference(tapSerialized, "_runner", runner);
-            AssetAuthoring.SetReference(tapSerialized, "_camera", camera);
-            AssetAuthoring.Apply(tapSerialized);
-
-            var sickle = go.AddComponent<SickleSwipeHarvestController>();
+            var sickle = input.AddComponent<SickleSwipeHarvestController>();
             var sickleSerialized = AssetAuthoring.Edit(sickle);
             AssetAuthoring.SetReference(sickleSerialized, "_runner", runner);
-            AssetAuthoring.SetReference(sickleSerialized, "_camera", camera);
             AssetAuthoring.Apply(sickleSerialized);
 
-            return selection;
+            var gestures = input.AddComponent<TownGestures>();
+            var serialized = AssetAuthoring.Edit(gestures);
+            AssetAuthoring.SetReference(serialized, "_runner", runner);
+            AssetAuthoring.SetReference(serialized, "_camera", camera);
+            AssetAuthoring.SetReference(serialized, "_cameraController", cameraController);
+            AssetAuthoring.SetReference(serialized, "_hudDocument", hud.GetComponent<UIDocument>());
+            AssetAuthoring.SetReference(serialized, "_sickle", sickle);
+            AssetAuthoring.Apply(serialized);
         }
 
         static void CreateTownView(GameRunner runner, TownSelection selection)
@@ -164,7 +172,7 @@ namespace AlphaTown.EditorTools.Setup
             AssetAuthoring.Apply(serialized);
         }
 
-        static void CreateHud(GameRunner runner, TownSelection selection)
+        static TownHud CreateHud(GameRunner runner, TownSelection selection)
         {
             var go = new GameObject("HUD");
 
@@ -183,6 +191,7 @@ namespace AlphaTown.EditorTools.Setup
                 (element, _) => element.stringValue = "land_deed");
 
             AssetAuthoring.Apply(serialized);
+            return hud;
         }
 
         /// <summary>

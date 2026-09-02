@@ -89,6 +89,11 @@ namespace AlphaTown.UI.Hud
 
         void Build(VisualElement root)
         {
+            // The root fills the screen and is pickable by default, which would make every touch
+            // anywhere read as "on the HUD" and leave the town unable to be panned, tapped or
+            // harvested. Only actual widgets should block the world, so the layout containers opt
+            // out of hit-testing and the buttons and panels inside them keep theirs.
+            root.pickingMode = PickingMode.Ignore;
             root.style.flexGrow = 1f;
             root.style.paddingLeft = 16f;
             root.style.paddingRight = 16f;
@@ -130,13 +135,18 @@ namespace AlphaTown.UI.Hud
             _buildMenu = new BuildMenu(commands, database, Report);
             _contextPanel = new ContextPanel(commands, database, clock, Report, () => Open(Overlay.Build));
 
+            _toast.pickingMode = PickingMode.Ignore;
+            _overlay.pickingMode = PickingMode.Ignore;
+
             var bottom = UiKit.Row(12f);
+            bottom.pickingMode = PickingMode.Ignore;
             bottom.style.justifyContent = Justify.SpaceBetween;
             bottom.style.alignItems = Align.FlexEnd;
 
             bottom.Add(_contextPanel.Root);
 
             var buttons = UiKit.Row(12f);
+            buttons.pickingMode = PickingMode.Ignore;
             buttons.Add(UiKit.Action("Barn", () => Toggle(Overlay.Barn)));
             buttons.Add(UiKit.Action("Orders", () => Toggle(Overlay.Orders)));
             buttons.Add(UiKit.Action("Build", () => Toggle(Overlay.Build)));

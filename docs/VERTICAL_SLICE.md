@@ -44,8 +44,8 @@ already written into a save stay valid.
 Main Camera         Camera (orthographic) + IsoCameraController   pan, pinch-zoom, edge clamping
 Directional Light   Light
 GameRunner          GameRunner                                    composition root; owns the world
-Input               TownSelection, TownTapInput,                  tap to select, swipe to harvest
-                    SickleSwipeHarvestController
+Input               TownSelection, TownGestures,                  one gesture reader; drives the
+                    SickleSwipeHarvestController                  camera and the sickle
 Town                TownView                                      ground tiles, buildings, selection
 HUD                 UIDocument + TownHud                          resource bar, context panel, screens
 ```
@@ -54,11 +54,15 @@ HUD                 UIDocument + TownHud                          resource bar, 
 
 | Action | How |
 | --- | --- |
-| Look around | Drag to pan, pinch or scroll to zoom |
+| Look around | Drag anywhere that is not a ripe crop; pinch or scroll to zoom |
 | Inspect anything | Tap it — the context panel names it and offers what it can do |
 | Plant a field | Tap an empty field ▸ **Plant** |
 | Harvest one field | Tap a ripe field ▸ **Harvest** |
-| Harvest many fields | Drag the finger across them — the sickle swipe |
+| Harvest many fields | **Start** the drag on a ripe crop, then sweep across the rest |
+
+> Where a drag begins decides what it does: starting on a crop that is ready swings the sickle,
+> starting anywhere else moves the map. One finger cannot do both, which is what it used to try.
+> Two fingers always zoom.
 | Build | Tap empty land ▸ **Build**, or the **Build** button |
 | Upgrade | Tap a building ▸ **Upgrade** (shows its cost, greys out when unaffordable) |
 | Deliver an order | **Orders** ▸ **Deliver** |
@@ -145,6 +149,27 @@ Roughly in order of value per hour spent:
    obstacles in the locked parcels so unlocking one reveals something.
 
 ---
+
+## Input backends
+
+The slice works whatever **Project Settings ▸ Player ▸ Active Input Handling** is set to. It did
+not always: everything read the legacy `UnityEngine.Input` class, which throws at runtime — not at
+compile time — when the setting is "Input System Package (New)", the Unity 6 default. In an APK
+built that way, pan, zoom and swipe were all dead while the HUD kept working, because UI Toolkit
+speaks both backends.
+
+`PointerInput` is now the only thing that names a backend, and the Input System half lives in an
+assembly Unity skips entirely when the package is absent. See
+[ARCHITECTURE.md](ARCHITECTURE.md#input-backends).
+
+If nothing responds to touch at all, look for one line in logcat:
+
+```
+adb logcat -s Unity | grep AlphaTown
+```
+
+`[AlphaTown][Input] No pointer source is available` means neither backend is usable — set Active
+Input Handling to **Both** and restart the Editor.
 
 ## What the slice deliberately leaves out
 

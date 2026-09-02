@@ -24,6 +24,7 @@ namespace AlphaTown.Data.Catalog
         bool TryGetCurrency(string id, out ICurrencyDefinition currency);
         bool TryGetOrderTemplate(string id, out IOrderTemplateDefinition template);
         bool TryGetBuilding(string id, out IBuildingDefinition building);
+        bool TryGetOrderBoard(string id, out IOrderBoardDefinition board);
 
         // Enumeration, for systems that select content rather than look it up by id — order
         // generation needs to know what the player can currently produce.
@@ -32,6 +33,7 @@ namespace AlphaTown.Data.Catalog
         IReadOnlyList<ICurrencyDefinition> Currencies { get; }
         IReadOnlyList<IOrderTemplateDefinition> OrderTemplates { get; }
         IReadOnlyList<IBuildingDefinition> Buildings { get; }
+        IReadOnlyList<IOrderBoardDefinition> OrderBoards { get; }
 
         /// <summary>The starting barn. TODO: multiple storages (barn / silo) once inventory splits.</summary>
         IStorageDefinition DefaultStorage { get; }

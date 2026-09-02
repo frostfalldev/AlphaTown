@@ -14,6 +14,8 @@ foundations the rest gets built on.
 - Core systems: game clock, event bus, inventory, production chains, save/load
 - A closed economic loop: currency with source/sink auditing, town level and XP, delivery orders
 - Buildings and a town grid: placement, timed construction, upgrades, and the primary coin sink
+- Farming: fields as no-input producers, with auto-replant as a data-driven upgrade
+- Order board pacing: per-slot cooldowns throttling the main coin faucet
 - Editor tooling that applies player settings, quality levels and a mobile URP profile
 - EditMode tests covering the simulation, with no scene required
 
@@ -39,6 +41,7 @@ opens, run **AlphaTown ▸ Setup ▸ Apply All Project Settings**.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Assembly layers and the core systems |
 | [docs/ECONOMY.md](docs/ECONOMY.md) | The economic loop, reason codes and the tuning levers |
 | [docs/BUILDINGS_AND_GRID.md](docs/BUILDINGS_AND_GRID.md) | Placement, construction and upgrade design |
+| [docs/FARMING_AND_PACING.md](docs/FARMING_AND_PACING.md) | Fields, auto-replant, and order slot cooldowns |
 | [docs/PROJECT_SETTINGS.md](docs/PROJECT_SETTINGS.md) | Every player and quality setting, and why |
 | [docs/URP_MOBILE_PROFILE.md](docs/URP_MOBILE_PROFILE.md) | Every mobile rendering setting, and why |
 

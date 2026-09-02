@@ -97,8 +97,10 @@ namespace AlphaTown.Tests.EditMode
             }
 
             Assert.That(completed, Is.EqualTo(1));
-            Assert.That(_world.HelicopterOrders.Orders.Count, Is.EqualTo(4));
             Assert.That(_world.HelicopterOrders.TryGetOrder(order.OrderId, out _), Is.False);
+
+            // The slot cools rather than refilling on the spot — see OrderBoardPacingTests.
+            Assert.That(_world.HelicopterOrders.Orders.Count, Is.EqualTo(3));
         }
 
         [Test]
@@ -141,6 +143,10 @@ namespace AlphaTown.Tests.EditMode
             foreach (var order in world.Orders()) stale.Add(order.OrderId);
             foreach (var id in stale) world.HelicopterOrders.TryDiscard(id);
 
+            // Discarding puts each slot on cooldown, so wait it out before the board refills.
+            _time.Advance(TimeSpan.FromSeconds(TestContent.OrderSlotCooldownSeconds + 1));
+            world.Sync();
+
             foreach (var order in world.Orders())
             {
                 Assert.That(order.Requests.Count, Is.EqualTo(2));
@@ -168,8 +174,13 @@ namespace AlphaTown.Tests.EditMode
             }
 
             Assert.That(expired, Is.EqualTo(4));
-            Assert.That(world.HelicopterOrders.Orders.Count, Is.EqualTo(4), "the board refills");
+            Assert.That(world.HelicopterOrders.Orders.Count, Is.EqualTo(0),
+                "expired slots go on cooldown rather than refilling immediately");
 
+            _time.Advance(TimeSpan.FromSeconds(TestContent.OrderSlotCooldownSeconds + 1));
+            world.Sync();
+
+            Assert.That(world.HelicopterOrders.Orders.Count, Is.EqualTo(4), "the board refills after the cooldown");
             foreach (var order in world.Orders())
             {
                 Assert.That(original, Does.Not.Contain(order.OrderId));

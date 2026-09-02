@@ -34,6 +34,7 @@ namespace AlphaTown.Gameplay.Production
         readonly List<ItemStack> _ready = new List<ItemStack>(4);
 
         int _level = 1;
+        bool _isAutoRepeating;
 
         public Producer(
             string instanceId,
@@ -59,6 +60,17 @@ namespace AlphaTown.Gameplay.Production
         public int Level => _level;
         public IReadOnlyList<ProductionOrder> Orders => _orders;
         public IReadOnlyList<ItemStack> Ready => _ready;
+
+        /// <summary>
+        /// The last recipe queued here. Auto-repeat re-runs it, and it is persisted so a field
+        /// still knows what it was growing after a restart.
+        /// </summary>
+        public string LastRecipeId { get; private set; }
+
+        /// <summary>Nothing running and nothing waiting to be collected. An empty field.</summary>
+        public bool IsIdle => _orders.Count == 0 && _ready.Count == 0;
+
+        public bool HasReadyGoods => _ready.Count > 0;
 
         public int QueueCapacity => _definition.GetLevel(_level).QueueCapacity;
         public bool HasFreeQueueSlot => _orders.Count < QueueCapacity;
@@ -88,6 +100,7 @@ namespace AlphaTown.Gameplay.Production
                 EnqueuedAtTicks = _clock.UtcNowTicks
             });
 
+            LastRecipeId = recipeId;
             _events.Publish(new ProductionOrderQueuedEvent(InstanceId, recipeId, _orders.Count - 1));
             Sync();
             return true;
@@ -138,7 +151,37 @@ namespace AlphaTown.Gameplay.Production
             }
 
             if (collected > 0) _events.Publish(new ProductionCollectedEvent(InstanceId, collected));
+
+            TryAutoRepeat(inventory);
             return collected;
+        }
+
+        /// <summary>
+        /// Re-runs the last recipe once the tray has been emptied — the auto-replant upgrade.
+        ///
+        /// Deliberately triggered by collection, not by completion. Repeating on completion would
+        /// keep cycling while the app is closed, so a field left for a week would bank a week of
+        /// harvests: exactly the runaway income the order board's pacing exists to prevent. Tying
+        /// it to collection makes it a convenience for the player who is actually here, and caps
+        /// an absence at one harvest however long it lasts.
+        /// </summary>
+        void TryAutoRepeat(IInventory inventory)
+        {
+            if (_isAutoRepeating) return;
+            if (_ready.Count > 0 || _orders.Count > 0) return;
+            if (string.IsNullOrEmpty(LastRecipeId)) return;
+            if (!_definition.GetLevel(_level).AutoRepeat) return;
+
+            // TryEnqueue publishes events, and a handler that collected again would recurse.
+            _isAutoRepeating = true;
+            try
+            {
+                TryEnqueue(LastRecipeId, inventory);
+            }
+            finally
+            {
+                _isAutoRepeating = false;
+            }
         }
 
         /// <summary>
@@ -208,9 +251,11 @@ namespace AlphaTown.Gameplay.Production
         }
 
         /// <summary>Restores state from save. Call <see cref="Sync"/> afterwards to catch up.</summary>
-        public void RestoreState(int level, IReadOnlyList<ProductionOrder> orders, IReadOnlyList<ItemStack> ready)
+        public void RestoreState(int level, IReadOnlyList<ProductionOrder> orders,
+                                 IReadOnlyList<ItemStack> ready, string lastRecipeId = null)
         {
             SetLevel(level);
+            LastRecipeId = lastRecipeId;
 
             _orders.Clear();
             if (orders != null)

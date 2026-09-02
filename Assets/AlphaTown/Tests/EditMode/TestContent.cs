@@ -1,5 +1,6 @@
 using System;
 using AlphaTown.Core.Spatial;
+using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
@@ -43,6 +44,24 @@ namespace AlphaTown.Tests.EditMode
         public const int BakeryLevel1BuildSeconds = 60;
         public const int BakeryLevel2BuildSeconds = 120;
 
+        // Farming. Added only when Build is asked for it, so the order-generation tests keep
+        // their level-1 pool of exactly one item and stay deterministic.
+        public const string Wheat = "wheat";
+        public const string Corn = "corn";
+        public const string WheatCrop = "recipe.wheat";
+        public const string CornCrop = "recipe.corn";
+        public const string Field = "field";
+        public const string FieldBuilding = "building.field";
+
+        public const int WheatGrowSeconds = 120;
+        public const int WheatYield = 2;
+        public const int CornGrowSeconds = 300;
+        public const int FieldCoinCost = 10;
+        public const int FieldUpgradeCoinCost = 100;
+
+        /// <summary>Every helicopter slot cools for ten minutes after its order clears.</summary>
+        public const int OrderSlotCooldownSeconds = 600;
+
         /// <summary>Small enough that out-of-bounds cases are easy to write.</summary>
         public const int TownWidth = 8;
         public const int TownHeight = 8;
@@ -56,7 +75,9 @@ namespace AlphaTown.Tests.EditMode
 
         public static FakeDatabase Build(int[] xpCurve = null, int barnCapacity = 100,
                                          int startingCoins = 0, int startingGems = 0,
-                                         IOrderTemplateDefinition orderTemplate = null)
+                                         IOrderTemplateDefinition orderTemplate = null,
+                                         bool includeFarming = false,
+                                         IOrderBoardDefinition orderBoard = null)
         {
             var breadRecipe = new FakeRecipe(
                 BreadRecipe,
@@ -82,9 +103,11 @@ namespace AlphaTown.Tests.EditMode
                 .WithCurrency(new FakeCurrency(Gems, CurrencyKind.Hard, startingGems))
                 .WithProgressionCurve(new FakeProgressionCurve(xpCurve ?? DefaultXpCurve))
                 .WithOrderTemplate(orderTemplate ?? SingleBreadTemplate())
-                .WithTown(new FakeTownDefinition(TownWidth, TownHeight));
+                .WithTown(new FakeTownDefinition(TownWidth, TownHeight))
+                .WithOrderBoard(orderBoard ?? DefaultOrderBoard());
 
             AddBuildings(database);
+            if (includeFarming) AddFarming(database);
 
             database.WithProducer(new FakeProducerDefinition(
                 Bakery,
@@ -93,6 +116,56 @@ namespace AlphaTown.Tests.EditMode
                 new FakeProducerLevel(queueCapacity: 5, parallelSlots: 2)));
 
             return database;
+        }
+
+        /// <summary>Four helicopter slots, each cooling for ten minutes after its order clears.</summary>
+        public static FakeOrderBoardDefinition DefaultOrderBoard() =>
+            new FakeOrderBoardDefinition(
+                OrderKind.Helicopter,
+                OrderSlotCooldownSeconds, OrderSlotCooldownSeconds,
+                OrderSlotCooldownSeconds, OrderSlotCooldownSeconds);
+
+        /// <summary>
+        /// Crops and a field to grow them in. A field is nothing more than a Farming building
+        /// whose producer runs recipes with no inputs — the free end of the same machinery that
+        /// runs the bakery. Its level 2 turns auto-replant on, which is the upgrade in data form.
+        /// </summary>
+        static void AddFarming(FakeDatabase database)
+        {
+            var wheat = new FakeRecipe(
+                WheatCrop,
+                TimeSpan.FromSeconds(WheatGrowSeconds),
+                null,
+                new[] { new ItemStack(Wheat, WheatYield) });
+
+            var corn = new FakeRecipe(
+                CornCrop,
+                TimeSpan.FromSeconds(CornGrowSeconds),
+                null,
+                new[] { new ItemStack(Corn, 2) },
+                unlockLevel: 2);
+
+            database
+                .WithItem(new FakeItem(Wheat, coinValue: 8, xpValue: 2))
+                .WithItem(new FakeItem(Corn, coinValue: 12, xpValue: 3))
+                .WithRecipe(wheat)
+                .WithRecipe(corn);
+
+            database.WithProducer(new FakeProducerDefinition(
+                Field,
+                new IRecipeDefinition[] { wheat, corn },
+                new FakeProducerLevel(queueCapacity: 1, parallelSlots: 1),
+                new FakeProducerLevel(queueCapacity: 1, parallelSlots: 1, autoRepeat: true)));
+
+            database.WithBuilding(new FakeBuildingDefinition(
+                FieldBuilding,
+                new GridSize(1, 1),
+                new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, FieldCoinCost) }),
+                new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, FieldUpgradeCoinCost) }))
+            {
+                Category = BuildingCategory.Farming,
+                ProducerDefinitionId = Field
+            });
         }
 
         /// <summary>

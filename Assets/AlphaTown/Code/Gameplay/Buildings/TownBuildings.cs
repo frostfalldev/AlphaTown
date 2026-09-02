@@ -69,6 +69,22 @@ namespace AlphaTown.Gameplay.Buildings
         public bool TryGetBuilding(string instanceId, out BuildingInstance building) =>
             _byId.TryGetValue(instanceId ?? string.Empty, out building);
 
+        /// <summary>
+        /// Fills <paramref name="results"/> with every placed building of a category — how the
+        /// game finds the town's fields. Takes a list rather than returning one so a caller that
+        /// runs often can reuse its own buffer.
+        /// </summary>
+        public void CollectByCategory(BuildingCategory category, List<BuildingInstance> results)
+        {
+            if (results == null) return;
+
+            results.Clear();
+            for (var i = 0; i < _buildings.Count; i++)
+            {
+                if (_buildings[i].Definition.Category == category) results.Add(_buildings[i]);
+            }
+        }
+
         /// <summary>Dry run of everything <see cref="TryPlace"/> checks. Nothing is charged.</summary>
         public BuildingActionResult ValidatePlacement(string definitionId, GridPosition origin)
         {

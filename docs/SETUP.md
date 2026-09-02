@@ -86,10 +86,10 @@ differs.
 
 ### 3.5 Run the tests
 
-**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 95 tests covering the barn, production
-chains, the clock, the wallet and its ledger, town progression, order generation and expiry, grid
-placement, building construction and upgrades, save round trips, and the full economic loop end to
-end. They need no scene and should take under a second.
+**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 118 tests covering the barn, production
+chains, the clock, the wallet and its ledger, town progression, order generation, expiry and slot
+pacing, the farming loop, grid placement, building construction and upgrades, save round trips, and
+the full economic loop end to end. They need no scene and should take under a second.
 
 ### 3.6 Switch the build target
 
@@ -126,6 +126,9 @@ Nothing is scene-bound yet, by design. When you want the simulation running:
    `OrderTemplateDefinition` assets. Without a template the order board simply stays empty.
    A `TownDefinition` (**AlphaTown ▸ Town Definition**) sets the buildable grid size; without one
    the world falls back to 32x32.
+   An `OrderBoardDefinition` (**AlphaTown ▸ Orders ▸ Order Board**) sets how many order slots there
+   are and how long each cools after its order clears. Without one the board falls back to four
+   slots at five minutes — pacing is on either way, authoring the asset is how you tune it.
    `BuildingDefinition` assets (**AlphaTown ▸ Buildings ▸ Building Definition**) are what the
    player spends coins on — set a footprint, a level 1 cost, and optionally a producer.
 4. Author items, recipes and producers under `Assets/AlphaTown/Content/` and register them.

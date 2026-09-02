@@ -180,6 +180,14 @@ player can only ever be asked for something they can make — a property that ho
 content grows. Rewards are baked in at generation time so a live-ops retune cannot retroactively
 cut a reward a player is already working toward.
 
+The board is a fixed set of **slots**, each with its own authored cooldown. A slot that is
+completed, expired or discarded goes quiet before offering anything new — the throttle on the
+game's main coin faucet, and the reason free crops do not become free money. Cooldowns are
+absolute timestamps and are persisted, so reloading cannot hand back a full board.
+
+Fields are not a separate system: a Farming building whose producer runs recipes with no inputs.
+Farming and pacing are covered together in [FARMING_AND_PACING.md](FARMING_AND_PACING.md).
+
 Full detail, including the reason-code taxonomy and the tuning levers, is in
 [ECONOMY.md](ECONOMY.md).
 
@@ -261,7 +269,8 @@ what they need through their constructors.
 `Assets/AlphaTown/Tests/EditMode` covers the barn's capacity and atomicity rules, the production
 chain (including a twenty-hour absence resolving in one `Sync`), clock pause/resume continuity,
 wallet atomicity and ledger reconciliation, XP cascading and cap behaviour, order generation and
-expiry, grid placement rules, building construction and both upgrade paths, a save round trip
+expiry, order slot pacing and its persistence, the farming loop including the offline auto-replant
+bound, grid placement rules, building construction and both upgrade paths, a save round trip
 through the real serializer, and the full economic loop end to end.
 
 `TestContent` is tuned so exactly one item is producible at town level 1, which makes generated

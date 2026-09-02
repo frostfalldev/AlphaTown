@@ -65,16 +65,19 @@ namespace AlphaTown.Tests.EditMode
 
     internal sealed class FakeProducerLevel : IProducerLevel
     {
-        public FakeProducerLevel(int queueCapacity, int parallelSlots, float speedMultiplier = 1f)
+        public FakeProducerLevel(int queueCapacity, int parallelSlots, float speedMultiplier = 1f,
+                                 bool autoRepeat = false)
         {
             QueueCapacity = queueCapacity;
             ParallelSlots = parallelSlots;
             SpeedMultiplier = speedMultiplier;
+            AutoRepeat = autoRepeat;
         }
 
         public int QueueCapacity { get; }
         public int ParallelSlots { get; }
         public float SpeedMultiplier { get; }
+        public bool AutoRepeat { get; }
     }
 
     internal sealed class FakeProducerDefinition : IProducerDefinition
@@ -192,6 +195,30 @@ namespace AlphaTown.Tests.EditMode
         public int BonusHardCurrency { get; set; }
     }
 
+    internal sealed class FakeOrderBoardDefinition : IOrderBoardDefinition
+    {
+        readonly int[] _cooldownSeconds;
+
+        /// <summary>One cooldown per slot; the count of them is the slot count.</summary>
+        public FakeOrderBoardDefinition(OrderKind kind, params int[] cooldownSeconds)
+        {
+            Kind = kind;
+            _cooldownSeconds = cooldownSeconds != null && cooldownSeconds.Length > 0
+                ? cooldownSeconds
+                : new[] { 0 };
+        }
+
+        public string Id => "orderboard." + Kind;
+        public OrderKind Kind { get; }
+        public int SlotCount => _cooldownSeconds.Length;
+
+        public TimeSpan CooldownForSlot(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= _cooldownSeconds.Length) return TimeSpan.Zero;
+            return TimeSpan.FromSeconds(_cooldownSeconds[slotIndex]);
+        }
+    }
+
     /// <summary>A gate pinned to a fixed level, for testing production without a whole economy.</summary>
     internal sealed class FakeUnlockGate : IUnlockGate
     {
@@ -300,11 +327,15 @@ namespace AlphaTown.Tests.EditMode
 
         readonly Dictionary<string, IBuildingDefinition> _buildings = new Dictionary<string, IBuildingDefinition>();
 
+        readonly Dictionary<string, IOrderBoardDefinition> _orderBoards =
+            new Dictionary<string, IOrderBoardDefinition>();
+
         readonly List<IItemDefinition> _itemList = new List<IItemDefinition>();
         readonly List<IRecipeDefinition> _recipeList = new List<IRecipeDefinition>();
         readonly List<ICurrencyDefinition> _currencyList = new List<ICurrencyDefinition>();
         readonly List<IOrderTemplateDefinition> _orderTemplateList = new List<IOrderTemplateDefinition>();
         readonly List<IBuildingDefinition> _buildingList = new List<IBuildingDefinition>();
+        readonly List<IOrderBoardDefinition> _orderBoardList = new List<IOrderBoardDefinition>();
 
         public IStorageDefinition DefaultStorage { get; set; }
         public ICurrencyDefinition SoftCurrency { get; set; }
@@ -317,6 +348,7 @@ namespace AlphaTown.Tests.EditMode
         public IReadOnlyList<ICurrencyDefinition> Currencies => _currencyList;
         public IReadOnlyList<IOrderTemplateDefinition> OrderTemplates => _orderTemplateList;
         public IReadOnlyList<IBuildingDefinition> Buildings => _buildingList;
+        public IReadOnlyList<IOrderBoardDefinition> OrderBoards => _orderBoardList;
 
         public FakeDatabase WithItem(IItemDefinition item)
         {
@@ -369,6 +401,13 @@ namespace AlphaTown.Tests.EditMode
             return this;
         }
 
+        public FakeDatabase WithOrderBoard(IOrderBoardDefinition board)
+        {
+            _orderBoards[board.Id] = board;
+            _orderBoardList.Add(board);
+            return this;
+        }
+
         public FakeDatabase WithTown(ITownDefinition town)
         {
             TownDefinition = town;
@@ -401,6 +440,9 @@ namespace AlphaTown.Tests.EditMode
 
         public bool TryGetBuilding(string id, out IBuildingDefinition building) =>
             _buildings.TryGetValue(id ?? string.Empty, out building);
+
+        public bool TryGetOrderBoard(string id, out IOrderBoardDefinition board) =>
+            _orderBoards.TryGetValue(id ?? string.Empty, out board);
     }
 
     /// <summary>Save store backed by a dictionary, so save tests never touch the filesystem.</summary>

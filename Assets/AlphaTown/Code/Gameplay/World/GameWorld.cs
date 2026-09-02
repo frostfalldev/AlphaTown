@@ -44,8 +44,6 @@ namespace AlphaTown.Gameplay.World
         /// </summary>
         const float SyncIntervalSeconds = 1f;
 
-        const int HelicopterBoardCapacity = 4;
-
         /// <summary>Used when the database has no TownDefinition. TODO(expansion): always data.</summary>
         static readonly GridSize DefaultTownSize = new GridSize(32, 32);
 
@@ -82,9 +80,11 @@ namespace AlphaTown.Gameplay.World
             Progression = progression;
 
             var generator = new OrderGenerator(database, random ?? new Random());
+            var boardDefinition = FindBoardDefinition(database, OrderKind.Helicopter)
+                                  ?? new FallbackOrderBoardDefinition(OrderKind.Helicopter);
+
             HelicopterOrders = new OrderBoard(
-                OrderKind.Helicopter, HelicopterBoardCapacity,
-                clock, events, progression, Barn, wallet, generator);
+                boardDefinition, clock, events, progression, Barn, wallet, generator);
 
             var town = database.TownDefinition;
             var gridSize = town != null && town.Size.IsValid ? town.Size : DefaultTownSize;
@@ -228,7 +228,8 @@ namespace AlphaTown.Gameplay.World
                     DefinitionId = producer.DefinitionId,
                     Level = producer.Level,
                     Orders = ToArray(producer.Orders),
-                    Ready = ToStackData(producer.Ready)
+                    Ready = ToStackData(producer.Ready),
+                    LastRecipeId = producer.LastRecipeId
                 };
             }
 
@@ -270,7 +271,7 @@ namespace AlphaTown.Gameplay.World
                     var producer = AddProducer(data.InstanceId, data.DefinitionId);
                     if (producer == null) continue; // Definition removed since the save was written.
 
-                    producer.RestoreState(data.Level, data.Orders, ToStacks(data.Ready));
+                    producer.RestoreState(data.Level, data.Orders, ToStacks(data.Ready), data.LastRecipeId);
                 }
             }
 
@@ -292,9 +293,34 @@ namespace AlphaTown.Gameplay.World
                 var data = boards[i];
                 if (data == null || (OrderKind)data.Kind != HelicopterOrders.Kind) continue;
 
-                HelicopterOrders.RestoreState(ToOrders(data.Orders), data.NextOrderNumber);
+                // Built in one pass so order and slot index stay aligned even when an entry is
+                // skipped as malformed.
+                var orders = new List<Order>(data.Orders != null ? data.Orders.Length : 0);
+                var slots = new List<int>(orders.Capacity);
+                ToOrdersAndSlots(data.Orders, orders, slots);
+
+                HelicopterOrders.RestoreState(
+                    orders, slots, data.SlotNextAvailableAtTicks, data.NextOrderNumber);
                 return;
             }
+        }
+
+        /// <summary>
+        /// Board pacing is authored per kind. Without a definition the fallback still applies a
+        /// cooldown — an instantly refilling board is unbounded income, and a project that has not
+        /// tuned its pacing should not find that out in production.
+        /// </summary>
+        static IOrderBoardDefinition FindBoardDefinition(IGameDatabase database, OrderKind kind)
+        {
+            var boards = database.OrderBoards;
+            if (boards == null) return null;
+
+            for (var i = 0; i < boards.Count; i++)
+            {
+                if (boards[i] != null && boards[i].Kind == kind) return boards[i];
+            }
+
+            return null;
         }
 
         static TValue Require<TValue>(TValue value, string label) where TValue : class
@@ -390,14 +416,21 @@ namespace AlphaTown.Gameplay.World
             {
                 Kind = (int)board.Kind,
                 NextOrderNumber = board.NextOrderNumber,
+                SlotNextAvailableAtTicks = new long[board.SlotCount],
                 Orders = new OrderSaveData[orders.Count]
             };
+
+            for (var i = 0; i < board.SlotCount; i++)
+            {
+                data.SlotNextAvailableAtTicks[i] = board.SlotAvailableAtTicks(i);
+            }
 
             for (var i = 0; i < orders.Count; i++)
             {
                 var order = orders[i];
                 data.Orders[i] = new OrderSaveData
                 {
+                    SlotIndex = board.SlotIndexOf(order.OrderId),
                     OrderId = order.OrderId,
                     TemplateId = order.TemplateId,
                     Kind = (int)order.Kind,
@@ -530,16 +563,16 @@ namespace AlphaTown.Gameplay.World
             return entries;
         }
 
-        static List<Order> ToOrders(OrderSaveData[] data)
+        static void ToOrdersAndSlots(OrderSaveData[] data, List<Order> orders, List<int> slots)
         {
-            var orders = new List<Order>(data != null ? data.Length : 0);
-            if (data == null) return orders;
+            if (data == null) return;
 
             for (var i = 0; i < data.Length; i++)
             {
                 var entry = data[i];
                 if (entry == null || string.IsNullOrEmpty(entry.OrderId)) continue;
 
+                slots.Add(entry.SlotIndex);
                 orders.Add(new Order(
                     entry.OrderId,
                     entry.TemplateId,
@@ -550,8 +583,6 @@ namespace AlphaTown.Gameplay.World
                     entry.CreatedAtTicks,
                     entry.ExpiresAtTicks));
             }
-
-            return orders;
         }
     }
 }

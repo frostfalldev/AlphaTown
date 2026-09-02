@@ -32,6 +32,7 @@ namespace AlphaTown.Data.Catalog
         [SerializeField] CurrencyDefinition[] _currencies;
         [SerializeField] OrderTemplateDefinition[] _orderTemplates;
         [SerializeField] BuildingDefinition[] _buildings;
+        [SerializeField] OrderBoardDefinition[] _orderBoards;
 
         [Header("Well-known entries")]
         [SerializeField]
@@ -59,12 +60,14 @@ namespace AlphaTown.Data.Catalog
         Dictionary<string, ICurrencyDefinition> _currenciesById;
         Dictionary<string, IOrderTemplateDefinition> _orderTemplatesById;
         Dictionary<string, IBuildingDefinition> _buildingsById;
+        Dictionary<string, IOrderBoardDefinition> _orderBoardsById;
 
         IItemDefinition[] _itemList;
         IRecipeDefinition[] _recipeList;
         ICurrencyDefinition[] _currencyList;
         IOrderTemplateDefinition[] _orderTemplateList;
         IBuildingDefinition[] _buildingList;
+        IOrderBoardDefinition[] _orderBoardList;
 
         public IStorageDefinition DefaultStorage => _defaultStorage;
         public ICurrencyDefinition SoftCurrency => _softCurrency;
@@ -117,6 +120,15 @@ namespace AlphaTown.Data.Catalog
             }
         }
 
+        public IReadOnlyList<IOrderBoardDefinition> OrderBoards
+        {
+            get
+            {
+                EnsureIndexed();
+                return _orderBoardList;
+            }
+        }
+
         public bool TryGetItem(string id, out IItemDefinition item)
         {
             EnsureIndexed();
@@ -159,6 +171,12 @@ namespace AlphaTown.Data.Catalog
             return _buildingsById.TryGetValue(id ?? string.Empty, out building);
         }
 
+        public bool TryGetOrderBoard(string id, out IOrderBoardDefinition board)
+        {
+            EnsureIndexed();
+            return _orderBoardsById.TryGetValue(id ?? string.Empty, out board);
+        }
+
         /// <summary>Rebuilds the indexes. Call after hot-reloading content in the editor.</summary>
         public void Reindex()
         {
@@ -170,12 +188,14 @@ namespace AlphaTown.Data.Catalog
             _orderTemplatesById =
                 Index<OrderTemplateDefinition, IOrderTemplateDefinition>(_orderTemplates, "order template");
             _buildingsById = Index<BuildingDefinition, IBuildingDefinition>(_buildings, "building");
+            _orderBoardsById = Index<OrderBoardDefinition, IOrderBoardDefinition>(_orderBoards, "order board");
 
             _itemList = ToArray(_itemsById);
             _recipeList = ToArray(_recipesById);
             _currencyList = ToArray(_currenciesById);
             _orderTemplateList = ToArray(_orderTemplatesById);
             _buildingList = ToArray(_buildingsById);
+            _orderBoardList = ToArray(_orderBoardsById);
         }
 
         void OnEnable() => _itemsById = null;

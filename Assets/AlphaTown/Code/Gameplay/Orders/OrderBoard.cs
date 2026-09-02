@@ -17,24 +17,38 @@ namespace AlphaTown.Gameplay.Orders
     /// This is where the loop closes: goods leave the barn, coins and XP come back, XP raises the
     /// town level, and the higher level widens the pool the next order is drawn from.
     ///
-    /// Expiry is timestamp-driven like everything else, so a board left alone for a week resolves
-    /// in a single <see cref="Sync"/> rather than needing anything to have been running.
+    /// The board is a fixed set of **slots**, each with its own cooldown. A slot that is completed,
+    /// expired or discarded goes quiet for a while before offering anything new. That cooldown is
+    /// the throttle on the game's main coin faucet: with fields producing for free, a board that
+    /// refilled the instant it emptied would be unbounded income.
+    ///
+    /// Cooldowns are absolute timestamps like everything else, so a board left alone for a week
+    /// resolves in a single <see cref="Sync"/> — nothing needs to have been running.
     /// </summary>
     public sealed class OrderBoard
     {
+        sealed class Slot
+        {
+            public Order Order;
+
+            /// <summary>Zero means the slot may produce an order now.</summary>
+            public long NextAvailableAtTicks;
+        }
+
+        readonly IOrderBoardDefinition _definition;
         readonly IGameClock _clock;
         readonly IEventBus _events;
         readonly ITownProgression _progression;
         readonly IInventory _barn;
         readonly IWallet _wallet;
         readonly OrderGenerator _generator;
-        readonly List<Order> _orders = new List<Order>(8);
+        readonly Slot[] _slots;
+        readonly List<Order> _active;
 
         int _nextOrderNumber = 1;
 
         public OrderBoard(
-            OrderKind kind,
-            int capacity,
+            IOrderBoardDefinition definition,
             IGameClock clock,
             IEventBus events,
             ITownProgression progression,
@@ -42,34 +56,54 @@ namespace AlphaTown.Gameplay.Orders
             IWallet wallet,
             OrderGenerator generator)
         {
-            Kind = kind;
-            Capacity = Guard.Positive(capacity, nameof(capacity));
+            _definition = Guard.NotNull(definition, nameof(definition));
             _clock = Guard.NotNull(clock, nameof(clock));
             _events = Guard.NotNull(events, nameof(events));
             _progression = Guard.NotNull(progression, nameof(progression));
             _barn = Guard.NotNull(barn, nameof(barn));
             _wallet = Guard.NotNull(wallet, nameof(wallet));
             _generator = Guard.NotNull(generator, nameof(generator));
+
+            var slotCount = definition.SlotCount > 0 ? definition.SlotCount : 1;
+            _slots = new Slot[slotCount];
+            for (var i = 0; i < slotCount; i++) _slots[i] = new Slot();
+
+            _active = new List<Order>(slotCount);
         }
 
-        public OrderKind Kind { get; }
+        public OrderKind Kind => _definition.Kind;
 
-        public int Capacity { get; }
+        public int SlotCount => _slots.Length;
 
-        public IReadOnlyList<Order> Orders => _orders;
+        /// <summary>Orders currently on offer. Fewer than <see cref="SlotCount"/> while slots cool.</summary>
+        public IReadOnlyList<Order> Orders => _active;
 
-        /// <summary>Expires what has run out, then refills empty slots. Safe to call at any time.</summary>
+        public int NextOrderNumber => _nextOrderNumber;
+
+        /// <summary>Zero when the slot is occupied or ready to refill.</summary>
+        public long SlotAvailableAtTicks(int slotIndex) =>
+            slotIndex < 0 || slotIndex >= _slots.Length ? 0 : _slots[slotIndex].NextAvailableAtTicks;
+
+        public bool IsSlotOnCooldown(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= _slots.Length) return false;
+
+            var slot = _slots[slotIndex];
+            return slot.Order == null && slot.NextAvailableAtTicks > _clock.UtcNowTicks;
+        }
+
+        /// <summary>Expires what has run out, then refills any slot whose cooldown has passed.</summary>
         public void Sync()
         {
             var now = _clock.UtcNowTicks;
 
-            for (var i = _orders.Count - 1; i >= 0; i--)
+            for (var i = 0; i < _slots.Length; i++)
             {
-                if (!_orders[i].IsExpired(now)) continue;
+                var order = _slots[i].Order;
+                if (order == null || !order.IsExpired(now)) continue;
 
-                var expired = _orders[i];
-                _orders.RemoveAt(i);
-                _events.Publish(new OrderExpiredEvent(expired.OrderId, expired.TemplateId));
+                VacateSlot(i, now);
+                _events.Publish(new OrderExpiredEvent(order.OrderId, order.TemplateId));
             }
 
             Refill(now);
@@ -77,87 +111,128 @@ namespace AlphaTown.Gameplay.Orders
 
         public bool TryGetOrder(string orderId, out Order order)
         {
-            var index = IndexOf(orderId);
-            order = index >= 0 ? _orders[index] : null;
+            var index = IndexOfSlot(orderId);
+            order = index >= 0 ? _slots[index].Order : null;
             return index >= 0;
         }
 
         /// <summary>True when the barn holds everything the order asks for and it has not expired.</summary>
         public bool CanComplete(string orderId)
         {
-            var index = IndexOf(orderId);
+            var index = IndexOfSlot(orderId);
             if (index < 0) return false;
 
-            var order = _orders[index];
+            var order = _slots[index].Order;
             return !order.IsExpired(_clock.UtcNowTicks) && _barn.ContainsAll(order.Requests);
         }
 
         /// <summary>
-        /// Delivers the order: consumes the goods, pays out, and refills the slot.
+        /// Delivers the order: consumes the goods, pays out, and puts the slot on cooldown.
         ///
         /// Atomic — the goods only leave the barn if all of them are there, so a partial delivery
         /// can never take payment-in-kind and give nothing back.
         /// </summary>
         public bool TryComplete(string orderId)
         {
-            var index = IndexOf(orderId);
+            var index = IndexOfSlot(orderId);
             if (index < 0) return false;
 
-            var order = _orders[index];
-            if (order.IsExpired(_clock.UtcNowTicks)) return false;
+            var now = _clock.UtcNowTicks;
+            var order = _slots[index].Order;
+            if (order.IsExpired(now)) return false;
             if (!_barn.TryRemoveAll(order.Requests)) return false;
 
             _wallet.GrantAll(order.CurrencyRewards, CurrencySource.OrderReward, order.OrderId);
             var levelsGained = _progression.GrantXp(order.XpReward, XpSource.OrderReward, order.OrderId);
 
-            _orders.RemoveAt(index);
+            VacateSlot(index, now);
             _events.Publish(new OrderCompletedEvent(
                 order.OrderId, order.TemplateId, order.XpReward, levelsGained));
 
-            // Refill after paying out: a level gained on this order widens the pool immediately.
+            // Sync after paying out: a level gained on this order widens the pool other slots
+            // draw from, even though this slot is now cooling.
             Sync();
             return true;
         }
 
         /// <summary>
-        /// Drops an order and replaces it. TODO: charge hard currency through
-        /// <see cref="CurrencySink.OrderReroll"/> once the reroll price is designed.
+        /// Drops an order. The slot cools like any other, which is what stops rerolling from being
+        /// a free way to fish for a better payout.
+        ///
+        /// TODO: a paid reroll charging <see cref="CurrencySink.OrderReroll"/> should skip the
+        /// cooldown — that is what the player would be buying.
         /// </summary>
         public bool TryDiscard(string orderId)
         {
-            var index = IndexOf(orderId);
+            var index = IndexOfSlot(orderId);
             if (index < 0) return false;
 
-            _orders.RemoveAt(index);
+            VacateSlot(index, _clock.UtcNowTicks);
             Sync();
             return true;
         }
 
-        /// <summary>Restores from save. Does not re-pay anything.</summary>
-        public void RestoreState(IReadOnlyList<Order> orders, int nextOrderNumber)
+        /// <summary>Restores from save, including which slots are still cooling.</summary>
+        public void RestoreState(IReadOnlyList<Order> orders, IReadOnlyList<int> slotIndices,
+                                 IReadOnlyList<long> slotCooldowns, int nextOrderNumber)
         {
-            _orders.Clear();
-            if (orders != null)
+            _active.Clear();
+            for (var i = 0; i < _slots.Length; i++)
             {
-                for (var i = 0; i < orders.Count; i++)
-                {
-                    if (orders[i] == null) continue;
-                    _orders.Add(orders[i]);
-                }
+                _slots[i].Order = null;
+                _slots[i].NextAvailableAtTicks =
+                    slotCooldowns != null && i < slotCooldowns.Count ? slotCooldowns[i] : 0;
             }
 
             _nextOrderNumber = nextOrderNumber > 0 ? nextOrderNumber : 1;
+
+            if (orders == null) return;
+
+            for (var i = 0; i < orders.Count; i++)
+            {
+                var order = orders[i];
+                if (order == null) continue;
+
+                var index = slotIndices != null && i < slotIndices.Count ? slotIndices[i] : i;
+                if (index < 0 || index >= _slots.Length || _slots[index].Order != null)
+                {
+                    // A slot count change between builds. Drop the order rather than the board.
+                    Log.Warn("Orders", "Order '" + order.OrderId + "' has no slot to return to.");
+                    continue;
+                }
+
+                _slots[index].Order = order;
+                _slots[index].NextAvailableAtTicks = 0;
+                _active.Add(order);
+            }
         }
 
-        public int NextOrderNumber => _nextOrderNumber;
+        /// <summary>Empties the slot and starts its cooldown.</summary>
+        void VacateSlot(int index, long nowTicks)
+        {
+            var slot = _slots[index];
+            if (slot.Order != null) _active.Remove(slot.Order);
+            slot.Order = null;
+
+            var cooldown = _definition.CooldownForSlot(index);
+            if (cooldown.Ticks <= 0)
+            {
+                slot.NextAvailableAtTicks = 0;
+                return;
+            }
+
+            slot.NextAvailableAtTicks = nowTicks + cooldown.Ticks;
+            _events.Publish(new OrderSlotCooldownStartedEvent(index, slot.NextAvailableAtTicks));
+        }
 
         void Refill(long nowTicks)
         {
-            // Bounded independently of Capacity: a template that cannot generate stops the loop,
-            // so this only guards against a future generator that returns non-null but adds nothing.
-            var attempts = 0;
-            while (_orders.Count < Capacity && attempts++ < Capacity + 4)
+            for (var i = 0; i < _slots.Length; i++)
             {
+                var slot = _slots[i];
+                if (slot.Order != null) continue;
+                if (nowTicks < slot.NextAvailableAtTicks) continue;
+
                 var template = _generator.TryPickTemplate(Kind, _progression.TownLevel);
                 if (template == null) return;
 
@@ -168,21 +243,29 @@ namespace AlphaTown.Gameplay.Orders
                 if (order == null) return;
 
                 _nextOrderNumber++;
-                _orders.Add(order);
+                slot.Order = order;
+                slot.NextAvailableAtTicks = 0;
+                _active.Add(order);
+
                 _events.Publish(new OrderGeneratedEvent(order.OrderId, order.TemplateId, order.ExpiresAtTicks));
             }
         }
 
-        int IndexOf(string orderId)
+        int IndexOfSlot(string orderId)
         {
             if (string.IsNullOrEmpty(orderId)) return -1;
 
-            for (var i = 0; i < _orders.Count; i++)
+            for (var i = 0; i < _slots.Length; i++)
             {
-                if (string.Equals(_orders[i].OrderId, orderId, System.StringComparison.Ordinal)) return i;
+                var order = _slots[i].Order;
+                if (order != null && string.Equals(order.OrderId, orderId, System.StringComparison.Ordinal))
+                    return i;
             }
 
             return -1;
         }
+
+        /// <summary>Slot index an order sits in, or -1. Used when capturing a save.</summary>
+        public int SlotIndexOf(string orderId) => IndexOfSlot(orderId);
     }
 }

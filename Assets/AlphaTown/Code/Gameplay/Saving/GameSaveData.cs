@@ -39,6 +39,9 @@ namespace AlphaTown.Gameplay.Saving
         public int Level = 1;
         public ProductionOrder[] Orders = Array.Empty<ProductionOrder>();
         public ItemStackSaveData[] Ready = Array.Empty<ItemStackSaveData>();
+
+        /// <summary>What auto-repeat re-runs, and what a field remembers it was growing.</summary>
+        public string LastRecipeId;
     }
 
     [Serializable]
@@ -94,6 +97,17 @@ namespace AlphaTown.Gameplay.Saving
     {
         public int Kind;
         public int NextOrderNumber = 1;
+
+        /// <summary>
+        /// One entry per slot: when that slot may produce its next order. Zero means available now.
+        /// Without this a load would refill every cooling slot and hand back free income.
+        /// </summary>
+        public long[] SlotNextAvailableAtTicks = Array.Empty<long>();
+
+        /// <summary>
+        /// Only the occupied slots. Each carries its slot index rather than nesting orders inside
+        /// slot objects, because JsonUtility cannot round-trip a null nested object.
+        /// </summary>
         public OrderSaveData[] Orders = Array.Empty<OrderSaveData>();
     }
 
@@ -127,6 +141,7 @@ namespace AlphaTown.Gameplay.Saving
     [Serializable]
     public sealed class OrderSaveData
     {
+        public int SlotIndex;
         public string OrderId;
         public string TemplateId;
         public int Kind;

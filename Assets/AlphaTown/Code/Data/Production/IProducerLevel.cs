@@ -11,5 +11,13 @@ namespace AlphaTown.Data.Production
 
         /// <summary>Divides authored recipe duration. 2 means twice as fast.</summary>
         float SpeedMultiplier { get; }
+
+        /// <summary>
+        /// Re-runs the last recipe when the output tray is emptied. This is the auto-replant
+        /// upgrade for fields, and it is per-level so an upgrade can switch it on.
+        ///
+        /// It triggers on collection, never on completion — see Producer for why that bound matters.
+        /// </summary>
+        bool AutoRepeat { get; }
     }
 }

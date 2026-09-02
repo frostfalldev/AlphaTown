@@ -166,6 +166,8 @@ Everything below is data, changeable without a code change:
 | Starting balances and currency caps | `CurrencyDefinition` |
 | Build and upgrade costs, build times | `BuildingDefinition` levels |
 | Buildable town size | `TownDefinition` |
+| Order slot count and cooldowns | `OrderBoardDefinition` |
+| Auto-replant, queue size, speed | `ProducerDefinition` levels |
 
 Board capacity is still a constant (`GameWorld.HelicopterBoardCapacity`). It moves into data when
 board upgrades exist.
@@ -177,7 +179,7 @@ board upgrades exist.
 - **The main sink is now buildings.** `BuildingPurchase` and `BuildingUpgrade` are wired up —
   see [BUILDINGS_AND_GRID.md](BUILDINGS_AND_GRID.md). Expansion and the market are still open, so
   the drain is narrower than the faucet until those land.
-- **No offline order generation cadence.** The board refills instantly. Township-style pacing
-  wants a per-slot cooldown.
+- **Slot pacing has landed.** Each board slot now cools before refilling, authored per slot in
+  `OrderBoardDefinition` — see [FARMING_AND_PACING.md](FARMING_AND_PACING.md).
 - **Speed-ups are not priced.** `Producer.TrySpeedUp` and `TryFinishNow` work; what they cost
   in gems is undesigned.

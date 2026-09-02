@@ -35,6 +35,22 @@ namespace AlphaTown.Gameplay.Orders
     }
 
     /// <summary>
+    /// A slot emptied and is now cooling. The hook a board UI uses to show a timer instead of a
+    /// gap, and the signal that the coin faucet is throttled right now.
+    /// </summary>
+    public readonly struct OrderSlotCooldownStartedEvent
+    {
+        public readonly int SlotIndex;
+        public readonly long AvailableAtTicks;
+
+        public OrderSlotCooldownStartedEvent(int slotIndex, long availableAtTicks)
+        {
+            SlotIndex = slotIndex;
+            AvailableAtTicks = availableAtTicks;
+        }
+    }
+
+    /// <summary>
     /// A time-limited order ran out. Fires on the next Sync, which after a long absence means it
     /// can arrive for an order that expired days ago.
     /// </summary>

@@ -131,3 +131,5 @@ be re-rolled by reloading.
   usual next step once real pacing data exists.
 - **Non-rectangular regions** are not supported. A `GridRect` per expansion covers a Township-style
   town; irregular coastlines would want a cell list.
+- **Deed payouts are not gated on trusted time.** `TimeTrust` is exposed but nothing refuses to pay
+  on an unverified clock — see [TIME_AND_ANTI_CHEAT.md](TIME_AND_ANTI_CHEAT.md).

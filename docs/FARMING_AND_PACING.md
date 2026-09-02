@@ -133,9 +133,9 @@ player stares at; both are reasons to come back later.
 
 ## Still open
 
-- **`ServerTimeSource` does not exist.** Device time is spoofable, and it now gates crops,
-  construction, production and order cooldowns. Every one of those is a cheat surface until an
-  authoritative clock lands. The `ITimeSource` seam is ready; only the implementation is missing.
+- **`ServerTimeSource` has landed.** Crops, construction, production and cooldowns now run on a
+  clock the player cannot move mid-session — see [TIME_AND_ANTI_CHEAT.md](TIME_AND_ANTI_CHEAT.md)
+  for what is still exposed.
 - **Cloud save has no conflict policy.** `ISaveStore` is the seam. Silently taking the newer
   timestamp loses progress, so the policy has to be designed rather than defaulted.
 - **Paid reroll is unpriced**, as above.

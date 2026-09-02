@@ -86,17 +86,28 @@ differs.
 
 ### 3.5 Run the tests
 
-**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 144 tests covering the barn, production
-chains, the clock, the wallet and its ledger, town progression, order generation, expiry and slot
-pacing, the farming loop, grid placement, building construction and upgrades, land purchase, save
-round trips, and the full economic loop end to end. They need no scene and should take under a second.
+**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 167 tests covering the barn, production
+chains, clock synchronisation and clock tampering, the wallet and its ledger, town progression,
+order generation, expiry and slot pacing, the farming loop, grid placement, building construction
+and upgrades, land purchase, save round trips, and the full economic loop end to end. They need no scene and should take under a second.
 
 ### 3.6 Switch the build target
 
 **File ▸ Build Settings → Android → Switch Platform.** First switch reimports every asset, so
 expect it to take a while.
 
-### 3.7 Confirm the open decisions
+### 3.7 Point the clock at a time server
+
+On the **GameRunner** component, set *Time Server Url* to something on your own backend. Its HTTP
+`Date` header is read as the time; the response body is ignored, so any endpoint will do.
+
+Leave it empty and the game runs on unverified device time, which is fine for local iteration and
+must never ship — every timer in the game is a comparison against this clock. Set *Time Source
+Mode* to **Device** to skip the network entirely while iterating.
+
+See [TIME_AND_ANTI_CHEAT.md](TIME_AND_ANTI_CHEAT.md).
+
+### 3.8 Confirm the open decisions
 
 Two placeholders in `Assets/AlphaTown/Code/Editor/Setup/AlphaTownProjectProfile.cs` are cheap to
 change now and expensive later:

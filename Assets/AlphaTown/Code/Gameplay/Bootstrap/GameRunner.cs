@@ -32,17 +32,39 @@ namespace AlphaTown.Gameplay.Bootstrap
 
         [SerializeField, Min(5f)] float _autoSaveIntervalSeconds = 30f;
 
+        [Header("Time")]
+        [SerializeField]
+        [Tooltip("Server-verified time, or the raw device clock for local iteration. " +
+                 "Never ship Device: every timer in the game is a comparison against this.")]
+        TimeSourceMode _timeSourceMode = TimeSourceMode.Server;
+
+        [SerializeField]
+        [Tooltip("URL whose HTTP Date header is read as the time. Your own backend, ideally. " +
+                 "Leave empty and the session runs on unverified device time.")]
+        string _timeServerUrl = string.Empty;
+
+        /// <summary>How often the device clock is checked for tampering. Cheap, but not free.</summary>
+        const float ClockDriftPollSeconds = 1f;
+
+        /// <summary>Its own slot: the clock's offset is infrastructure, not the player's town.</summary>
+        const string TimeSaveSlot = "time";
+
         ServiceRegistry _services;
         EventBus _events;
         GameClock _clock;
+        ServerTimeSource _timeSource;
         ISaveService _saveService;
         GameWorld _world;
 
         float _secondsSinceAutoSave;
+        float _secondsSinceDriftPoll;
 
         public GameWorld World => _world;
         public IEventBus Events => _events;
         public IGameClock Clock => _clock;
+
+        /// <summary>Whether this session's timers can be believed. See TimeTrust.</summary>
+        public TimeTrust Trust => _timeSource != null ? _timeSource.Trust : TimeTrust.Untrusted;
 
         void Awake()
         {
@@ -57,7 +79,9 @@ namespace AlphaTown.Gameplay.Bootstrap
             QualitySettings.vSyncCount = 0;
 
             _events = new EventBus();
-            _clock = new GameClock(new DeviceTimeSource());
+            _timeSource = BuildTimeSource();
+            _timeSource.ClockJumpDetected += OnClockJumpDetected;
+            _clock = new GameClock(_timeSource);
             _saveService = new SaveService(
                 FileSaveStore.CreateDefault(),
                 new JsonSaveSerializer(UnityEngine.Debug.isDebugBuild),
@@ -72,7 +96,77 @@ namespace AlphaTown.Gameplay.Bootstrap
             _services.Register(_saveService);
             _services.Register(_world);
 
+            RestoreTimeState();
             LoadOrCreate();
+
+            // Fired off after the world exists so the answer can catch it up when it lands.
+            _timeSource.RequestSync(OnSyncCompleted);
+        }
+
+        /// <summary>
+        /// Both modes go through <see cref="ServerTimeSource"/>; Device mode simply has nothing to
+        /// ask. Even unsynced, that beats the raw device clock — time still advances on a
+        /// monotonic counter, so moving the clock mid-session does nothing.
+        /// </summary>
+        ServerTimeSource BuildTimeSource()
+        {
+            IServerTimeProvider provider = null;
+
+            if (_timeSourceMode == TimeSourceMode.Server)
+            {
+                if (string.IsNullOrEmpty(_timeServerUrl))
+                {
+                    Log.Warn("Bootstrap",
+                        "Time source is Server but no URL is set. Falling back to unverified device time.");
+                }
+                else
+                {
+                    provider = new HttpDateHeaderTimeProvider(_timeServerUrl);
+                }
+            }
+            else
+            {
+                Log.Warn("Bootstrap",
+                    "Running on device time. Timers are unverified — this must not ship.");
+            }
+
+            return new ServerTimeSource(new DeviceTimeSource(), new StopwatchMonotonicClock(), provider);
+        }
+
+        void RestoreTimeState()
+        {
+            if (_saveService.TryLoad<TimeSyncSaveData>(TimeSaveSlot, out var state))
+            {
+                _timeSource.RestoreState(state);
+                return;
+            }
+
+            Log.Info("Bootstrap", "No stored clock offset. First run on this device.");
+        }
+
+        void OnSyncCompleted(bool success)
+        {
+            if (!success)
+            {
+                Log.Warn("Bootstrap",
+                    "Playing on " + _timeSource.Trust + " time. Timers will be verified once the " +
+                    "server is reachable.");
+                return;
+            }
+
+            // The authoritative time may differ from what the world just caught up to.
+            if (_world != null) _world.Sync();
+            SaveTimeState();
+        }
+
+        void OnClockJumpDetected(long driftTicks)
+        {
+            // TODO(live-ops): report this to analytics. A device clock that leaps mid-session is
+            // the clearest tampering signal the client can produce on its own.
+            Log.Warn("Bootstrap",
+                "Device clock jumped by " + System.TimeSpan.FromTicks(driftTicks) + ". Re-syncing.");
+
+            _timeSource.RequestSync(OnSyncCompleted);
         }
 
         void Update()
@@ -82,6 +176,13 @@ namespace AlphaTown.Gameplay.Bootstrap
             var delta = Time.unscaledDeltaTime;
             _clock.Tick(delta);
             _world.Tick(_clock.ScaledDeltaSeconds);
+
+            _secondsSinceDriftPoll += delta;
+            if (_secondsSinceDriftPoll >= ClockDriftPollSeconds)
+            {
+                _secondsSinceDriftPoll = 0f;
+                _timeSource.PollDeviceDrift();
+            }
 
             _secondsSinceAutoSave += delta;
             if (_secondsSinceAutoSave < _autoSaveIntervalSeconds) return;
@@ -104,8 +205,11 @@ namespace AlphaTown.Gameplay.Bootstrap
                 return;
             }
 
-            // Back from the background: catch up before the player sees a stale town.
+            // The monotonic counter can stop while a device sleeps, so the clock is re-based
+            // before anything reads it, and re-verified as soon as the network allows.
+            _timeSource.RebaselineAfterSuspend();
             _world.Sync();
+            _timeSource.RequestSync(OnSyncCompleted);
         }
 
         void OnApplicationQuit() => SaveGame();
@@ -133,6 +237,15 @@ namespace AlphaTown.Gameplay.Bootstrap
             _world.Sync();
             if (!_saveService.TrySave(GameWorld.DefaultSaveSlot, _world.CaptureSave()))
                 Log.Error("Bootstrap", "Auto-save failed.");
+
+            SaveTimeState();
+        }
+
+        void SaveTimeState()
+        {
+            if (_timeSource == null || _saveService == null) return;
+
+            _saveService.TrySave(TimeSaveSlot, _timeSource.CaptureState());
         }
     }
 }

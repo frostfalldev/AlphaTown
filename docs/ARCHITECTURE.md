@@ -81,15 +81,27 @@ deterministic tests share one code path.
 
 `GameClock` sits on an `ITimeSource`:
 
-- `DeviceTimeSource` — the device clock. Correct offline, and trusting.
+- `ServerTimeSource` — what a build runs on. Takes one authoritative instant from the backend and
+  carries it forward on a monotonic counter, so the device clock is never read again during a
+  session. Moving it achieves nothing.
+- `DeviceTimeSource` — the raw device clock. Used as the fallback *inside* `ServerTimeSource`,
+  never on its own in a build.
 - `ManualTimeSource` — driven by hand, for tests and the debug menu.
+
+Every source reports a `TimeTrust`, surfaced up through `IGameClock.Trust`, so a system handing
+out real value on a timer can ask whether this session's clock can be believed.
 
 `Pause`/`Resume` keep simulation time continuous by absorbing the paused span into an offset —
 resuming must not hand back the missing minutes, or every timer in town jumps.
 
-> **TODO (must land before launch):** `ServerTimeSource`. Device time is trivially spoofable, so
-> every timer is a cheat surface until an authoritative source exists. The interface is already
-> the seam; only the implementation is missing.
+Every gate in the game — crops, construction, upgrades, production, order expiry, slot cooldowns —
+is a comparison against this clock, which makes it the most valuable thing in the game to lie
+about. The threat model, the fallback behaviour, what remains exposed and the hardening order are
+in [TIME_AND_ANTI_CHEAT.md](TIME_AND_ANTI_CHEAT.md).
+
+> **Still open:** the time source reads an HTTP `Date` header, which defeats a player in Settings
+> but is unsigned. A signed timestamp from your own backend is the next step, and only
+> `HttpDateHeaderTimeProvider` changes when it lands.
 
 ### Events — `AlphaTown.Core.Events`
 
@@ -287,8 +299,8 @@ chain (including a twenty-hour absence resolving in one `Sync`), clock pause/res
 wallet atomicity and ledger reconciliation, XP cascading and cap behaviour, order generation and
 expiry, order slot pacing and its persistence, the farming loop including the offline auto-replant
 bound, grid placement rules, building construction and both upgrade paths, land purchase with its
-prerequisite chain and restore ordering, a save round trip through the real serializer, and the
-full economic loop end to end.
+prerequisite chain and restore ordering, clock synchronisation with its offline and tamper paths,
+a save round trip through the real serializer, and the full economic loop end to end.
 
 `TestContent` is tuned so exactly one item is producible at town level 1, which makes generated
 orders deterministic without depending on an RNG seed. Randomness is injected into `GameWorld`

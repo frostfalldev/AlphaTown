@@ -15,6 +15,7 @@ using AlphaTown.Data.Town;
 using AlphaTown.Gameplay.Production;
 using AlphaTown.Gameplay.Progression;
 using AlphaTown.Services.Save;
+using AlphaTown.Services.Timing;
 
 namespace AlphaTown.Tests.EditMode
 {
@@ -490,6 +491,26 @@ namespace AlphaTown.Tests.EditMode
 
         public bool TryGetExpansion(string id, out IExpansionDefinition expansion) =>
             _expansions.TryGetValue(id ?? string.Empty, out expansion);
+    }
+
+    /// <summary>
+    /// Answers time requests instantly and synchronously, so a test can drive sync, failure and
+    /// latency without a network or a frame delay.
+    /// </summary>
+    internal sealed class FakeServerTimeProvider : IServerTimeProvider
+    {
+        public long ServerUtcTicks;
+        public long RoundTripTicks;
+        public bool IsReachable = true;
+        public int RequestCount;
+
+        public void RequestTime(Action<ServerTimeSample> onComplete)
+        {
+            RequestCount++;
+            onComplete?.Invoke(IsReachable
+                ? ServerTimeSample.From(ServerUtcTicks, RoundTripTicks)
+                : ServerTimeSample.Failed);
+        }
     }
 
     /// <summary>Save store backed by a dictionary, so save tests never touch the filesystem.</summary>

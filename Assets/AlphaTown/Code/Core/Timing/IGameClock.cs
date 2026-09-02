@@ -23,5 +23,12 @@ namespace AlphaTown.Core.Timing
         float TimeScale { get; }
 
         bool IsPaused { get; }
+
+        /// <summary>
+        /// How far this session's clock can be believed. Systems that hand out real value on a
+        /// timer can check it; most systems should not need to, because the anti-cheat work
+        /// happens beneath this interface rather than at every call site.
+        /// </summary>
+        TimeTrust Trust { get; }
     }
 }

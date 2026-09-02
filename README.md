@@ -17,6 +17,7 @@ foundations the rest gets built on.
 - Farming: fields as no-input producers, with auto-replant as a data-driven upgrade
 - Order board pacing: per-slot cooldowns throttling the main coin faucet
 - Expansion: land bought with deeds earned from orders, not coins
+- Server-verified time, so timers survive a player editing their device clock
 - Editor tooling that applies player settings, quality levels and a mobile URP profile
 - EditMode tests covering the simulation, with no scene required
 
@@ -44,6 +45,7 @@ opens, run **AlphaTown ▸ Setup ▸ Apply All Project Settings**.
 | [docs/BUILDINGS_AND_GRID.md](docs/BUILDINGS_AND_GRID.md) | Placement, construction and upgrade design |
 | [docs/FARMING_AND_PACING.md](docs/FARMING_AND_PACING.md) | Fields, auto-replant, and order slot cooldowns |
 | [docs/EXPANSION.md](docs/EXPANSION.md) | Land deeds, regions and why land is not coin-gated |
+| [docs/TIME_AND_ANTI_CHEAT.md](docs/TIME_AND_ANTI_CHEAT.md) | Threat model, trusted time, and what is still exposed |
 | [docs/PROJECT_SETTINGS.md](docs/PROJECT_SETTINGS.md) | Every player and quality setting, and why |
 | [docs/URP_MOBILE_PROFILE.md](docs/URP_MOBILE_PROFILE.md) | Every mobile rendering setting, and why |
 

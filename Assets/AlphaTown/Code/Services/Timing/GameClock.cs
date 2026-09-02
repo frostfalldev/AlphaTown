@@ -36,6 +36,12 @@ namespace AlphaTown.Services.Timing
 
         public bool IsPaused => _isPaused;
 
+        /// <summary>Forwarded from the time source. See <see cref="TimeTrust"/>.</summary>
+        public TimeTrust Trust => _source.Trust;
+
+        /// <summary>Convenience for the common question: can this session's timers be believed?</summary>
+        public bool IsTimeTrusted => _source.Trust == TimeTrust.Synchronized;
+
         public void SetTimeScale(float scale) => _timeScale = Math.Max(0f, scale);
 
         /// <summary>

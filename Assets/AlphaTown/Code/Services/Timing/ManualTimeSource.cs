@@ -1,4 +1,5 @@
 using System;
+using AlphaTown.Core.Timing;
 
 namespace AlphaTown.Services.Timing
 {
@@ -18,6 +19,13 @@ namespace AlphaTown.Services.Timing
         }
 
         public long UtcNowTicks { get; private set; }
+
+        /// <summary>
+        /// Reported as synchronised: a test drives this clock directly, so it is exactly as
+        /// authoritative as the test intends. It also keeps trust-aware code on its normal path
+        /// in every existing test rather than on a fallback branch.
+        /// </summary>
+        public TimeTrust Trust => TimeTrust.Synchronized;
 
         public void Advance(TimeSpan amount) => UtcNowTicks += amount.Ticks;
 

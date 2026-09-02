@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using UnityEditor;
@@ -35,7 +34,7 @@ namespace AlphaTown.EditorTools.Setup
         /// </summary>
         public static void ApplyFromCommandLine() => Run(dryRun: false);
 
-        static void Run(bool dryRun)
+        internal static void Run(bool dryRun)
         {
             var report = new StringBuilder();
             report.AppendLine(dryRun
@@ -126,15 +125,15 @@ namespace AlphaTown.EditorTools.Setup
                     continue;
                 }
 
-                var before = Describe(property);
-                if (!TryWrite(property, setting.Value))
+                var before = SerializedSettingWriter.Describe(property);
+                if (!SerializedSettingWriter.TryWrite(property, setting.Value))
                 {
                     report.AppendLine(
                         $"    ! {setting.PropertyPath}: unsupported type {property.propertyType}, skipped");
                     continue;
                 }
 
-                var after = Describe(property);
+                var after = SerializedSettingWriter.Describe(property);
                 if (string.Equals(before, after, StringComparison.Ordinal)) continue;
 
                 changes++;
@@ -145,47 +144,6 @@ namespace AlphaTown.EditorTools.Setup
             // In a dry run the SerializedObject is simply discarded, so nothing reaches the asset.
             if (changes > 0 && !dryRun) serialized.ApplyModifiedProperties();
             return changes;
-        }
-
-        static bool TryWrite(SerializedProperty property, object value)
-        {
-            switch (property.propertyType)
-            {
-                case SerializedPropertyType.Boolean:
-                    property.boolValue = Convert.ToBoolean(value, CultureInfo.InvariantCulture);
-                    return true;
-                // URP enums such as MsaaQuality (1/2/4/8) and ShadowResolution (256..4096) serialize
-                // their literal value, not an index, so intValue is the correct accessor.
-                case SerializedPropertyType.Integer:
-                case SerializedPropertyType.Enum:
-                    property.intValue = Convert.ToInt32(value, CultureInfo.InvariantCulture);
-                    return true;
-                case SerializedPropertyType.Float:
-                    property.floatValue = Convert.ToSingle(value, CultureInfo.InvariantCulture);
-                    return true;
-                case SerializedPropertyType.Vector2:
-                    property.vector2Value = (Vector2)value;
-                    return true;
-                case SerializedPropertyType.Vector3:
-                    property.vector3Value = (Vector3)value;
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        static string Describe(SerializedProperty property)
-        {
-            switch (property.propertyType)
-            {
-                case SerializedPropertyType.Boolean: return property.boolValue ? "true" : "false";
-                case SerializedPropertyType.Integer:
-                case SerializedPropertyType.Enum: return property.intValue.ToString(CultureInfo.InvariantCulture);
-                case SerializedPropertyType.Float: return property.floatValue.ToString("0.###", CultureInfo.InvariantCulture);
-                case SerializedPropertyType.Vector2: return property.vector2Value.ToString();
-                case SerializedPropertyType.Vector3: return property.vector3Value.ToString();
-                default: return "<" + property.propertyType + ">";
-            }
         }
 
         // --- Project settings -----------------------------------------------------------------

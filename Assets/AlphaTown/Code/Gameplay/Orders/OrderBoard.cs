@@ -143,6 +143,7 @@ namespace AlphaTown.Gameplay.Orders
             if (!_barn.TryRemoveAll(order.Requests)) return false;
 
             _wallet.GrantAll(order.CurrencyRewards, CurrencySource.OrderReward, order.OrderId);
+            GrantItemRewards(order);
             var levelsGained = _progression.GrantXp(order.XpReward, XpSource.OrderReward, order.OrderId);
 
             VacateSlot(index, now);
@@ -204,6 +205,21 @@ namespace AlphaTown.Gameplay.Orders
                 _slots[index].Order = order;
                 _slots[index].NextAvailableAtTicks = 0;
                 _active.Add(order);
+            }
+        }
+
+        /// <summary>
+        /// Pays the order's item rewards into the barn. Land deeds are non-storable so they always
+        /// fit; a storable bonus is clipped by barn space like any other delivery, and Add already
+        /// publishes the overflow.
+        /// </summary>
+        void GrantItemRewards(Order order)
+        {
+            var rewards = order.ItemRewards;
+            for (var i = 0; i < rewards.Count; i++)
+            {
+                if (rewards[i].IsEmpty) continue;
+                _barn.Add(rewards[i].ItemId, rewards[i].Count);
             }
         }
 

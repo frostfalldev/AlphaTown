@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Economy;
+using AlphaTown.Data.Expansion;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
 using AlphaTown.Data.Production;
@@ -25,6 +26,7 @@ namespace AlphaTown.Data.Catalog
         bool TryGetOrderTemplate(string id, out IOrderTemplateDefinition template);
         bool TryGetBuilding(string id, out IBuildingDefinition building);
         bool TryGetOrderBoard(string id, out IOrderBoardDefinition board);
+        bool TryGetExpansion(string id, out IExpansionDefinition expansion);
 
         // Enumeration, for systems that select content rather than look it up by id — order
         // generation needs to know what the player can currently produce.
@@ -34,6 +36,7 @@ namespace AlphaTown.Data.Catalog
         IReadOnlyList<IOrderTemplateDefinition> OrderTemplates { get; }
         IReadOnlyList<IBuildingDefinition> Buildings { get; }
         IReadOnlyList<IOrderBoardDefinition> OrderBoards { get; }
+        IReadOnlyList<IExpansionDefinition> Expansions { get; }
 
         /// <summary>The starting barn. TODO: multiple storages (barn / silo) once inventory splits.</summary>
         IStorageDefinition DefaultStorage { get; }

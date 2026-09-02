@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using AlphaTown.Data.Definitions;
+using AlphaTown.Data.Items;
 using UnityEngine;
 
 namespace AlphaTown.Data.Orders
@@ -28,6 +30,14 @@ namespace AlphaTown.Data.Orders
         [Tooltip("Flat hard-currency bonus. Keep this at zero unless the design calls for a faucet.")]
         int _bonusHardCurrency;
 
+        [SerializeField]
+        [Tooltip("Bonus items on completion. Land deeds go here.")]
+        ItemAmount[] _bonusItems = Array.Empty<ItemAmount>();
+
+        [SerializeField, Range(0f, 1f)]
+        [Tooltip("Chance the bonus drops. Rolled when the order is generated, not when completed.")]
+        float _bonusItemChance = 1f;
+
         public OrderKind Kind => _kind;
         public int UnlockLevel => _unlockLevel;
         public int MinItemTypes => _minItemTypes;
@@ -38,6 +48,26 @@ namespace AlphaTown.Data.Orders
         public float CoinMultiplier => _coinMultiplier;
         public float XpMultiplier => _xpMultiplier;
         public int BonusHardCurrency => _bonusHardCurrency;
+        public float BonusItemChance => _bonusItemChance;
+
+        public IReadOnlyList<ItemStack> BonusItems =>
+            _cachedBonusItems ?? (_cachedBonusItems = BuildBonusItems());
+
+        ItemStack[] _cachedBonusItems;
+
+        ItemStack[] BuildBonusItems()
+        {
+            if (_bonusItems == null || _bonusItems.Length == 0) return Array.Empty<ItemStack>();
+
+            var stacks = new List<ItemStack>(_bonusItems.Length);
+            for (var i = 0; i < _bonusItems.Length; i++)
+            {
+                if (_bonusItems[i] == null || !_bonusItems[i].IsValid) continue;
+                stacks.Add(_bonusItems[i].ToStack());
+            }
+
+            return stacks.ToArray();
+        }
 
 #if UNITY_EDITOR
         protected override void OnValidate()
@@ -45,6 +75,7 @@ namespace AlphaTown.Data.Orders
             base.OnValidate();
             if (_maxItemTypes < _minItemTypes) _maxItemTypes = _minItemTypes;
             if (_maxQuantityPerItem < _minQuantityPerItem) _maxQuantityPerItem = _minQuantityPerItem;
+            _cachedBonusItems = null;
         }
 #endif
     }

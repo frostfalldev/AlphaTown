@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AlphaTown.Core.Diagnostics;
 using AlphaTown.Core.Spatial;
 
@@ -15,6 +16,13 @@ namespace AlphaTown.Gameplay.Grid
     {
         readonly string[] _occupants;
 
+        /// <summary>
+        /// Which cells the player owns. Starts entirely true, so a project with no expansion
+        /// content behaves exactly as it did before land unlocks existed; TownExpansion narrows it
+        /// when there is a starting area to honour.
+        /// </summary>
+        readonly bool[] _unlocked;
+
         public TownGrid(GridSize size)
         {
             if (!size.IsValid)
@@ -25,6 +33,9 @@ namespace AlphaTown.Gameplay.Grid
 
             Size = size;
             _occupants = new string[size.Area];
+            _unlocked = new bool[size.Area];
+
+            UnlockEverything();
         }
 
         public GridSize Size { get; }
@@ -37,13 +48,78 @@ namespace AlphaTown.Gameplay.Grid
             rect.MaxX < Size.Width && rect.MaxY < Size.Height;
 
         /// <summary>
-        /// Whether the player may build on this cell.
-        ///
-        /// TODO(expansion): every cell in bounds is buildable today. Expansion will gate this on
-        /// purchased regions — keeping the question here means placement validation needs no
-        /// change when it lands, only this method.
+        /// Whether the player owns this cell and may build on it. The single question placement
+        /// asks about land, which is why expansion needed no change to placement validation.
         /// </summary>
-        public bool IsUnlocked(GridPosition cell) => IsInBounds(cell);
+        public bool IsUnlocked(GridPosition cell) => IsInBounds(cell) && _unlocked[IndexOf(cell)];
+
+        /// <summary>True when every cell of the rect is owned.</summary>
+        public bool IsUnlocked(GridRect rect)
+        {
+            if (!IsInBounds(rect)) return false;
+
+            for (var y = rect.MinY; y <= rect.MaxY; y++)
+            {
+                for (var x = rect.MinX; x <= rect.MaxX; x++)
+                {
+                    if (!_unlocked[IndexOf(new GridPosition(x, y))]) return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Replaces the owned area with exactly these regions. Used when expansion state is
+        /// applied or restored, so the mask is always rebuilt from the authoritative id list
+        /// rather than accumulated — there is no way for the two to drift apart.
+        /// </summary>
+        public void SetUnlockedRegions(IReadOnlyList<GridRect> regions)
+        {
+            for (var i = 0; i < _unlocked.Length; i++) _unlocked[i] = false;
+            if (regions == null) return;
+
+            for (var i = 0; i < regions.Count; i++) UnlockRegion(regions[i]);
+        }
+
+        /// <summary>Adds a region to the owned area. Land is never taken back.</summary>
+        public void UnlockRegion(GridRect region)
+        {
+            if (!region.IsValid) return;
+
+            var minX = region.MinX < 0 ? 0 : region.MinX;
+            var minY = region.MinY < 0 ? 0 : region.MinY;
+            var maxX = region.MaxX >= Size.Width ? Size.Width - 1 : region.MaxX;
+            var maxY = region.MaxY >= Size.Height ? Size.Height - 1 : region.MaxY;
+
+            for (var y = minY; y <= maxY; y++)
+            {
+                for (var x = minX; x <= maxX; x++)
+                {
+                    _unlocked[IndexOf(new GridPosition(x, y))] = true;
+                }
+            }
+        }
+
+        public void UnlockEverything()
+        {
+            for (var i = 0; i < _unlocked.Length; i++) _unlocked[i] = true;
+        }
+
+        /// <summary>Owned cells. For a land menu showing how much of the town is bought.</summary>
+        public int UnlockedCellCount
+        {
+            get
+            {
+                var count = 0;
+                for (var i = 0; i < _unlocked.Length; i++)
+                {
+                    if (_unlocked[i]) count++;
+                }
+
+                return count;
+            }
+        }
 
         /// <param name="ignoreInstanceId">
         /// Cells owned by this instance count as free. Needed for moving and for re-footprinting

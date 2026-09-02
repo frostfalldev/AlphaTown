@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AlphaTown.Core.Spatial;
 using AlphaTown.Gameplay.Grid;
 using NUnit.Framework;
@@ -94,6 +95,48 @@ namespace AlphaTown.Tests.EditMode
             Assert.That(occupant, Is.EqualTo("shed"));
             Assert.That(_grid.TryGetOccupant(new GridPosition(5, 5), out _), Is.False);
             Assert.That(_grid.TryGetOccupant(new GridPosition(99, 99), out _), Is.False);
+        }
+
+        [Test]
+        public void ANewGrid_IsEntirelyUnlocked()
+        {
+            Assert.That(_grid.UnlockedCellCount, Is.EqualTo(64));
+            Assert.That(_grid.IsUnlocked(new GridPosition(7, 7)), Is.True);
+        }
+
+        /// <summary>
+        /// The single hook expansion works through: narrowing the owned area is all it takes for
+        /// placement to start refusing land, with no change to placement itself.
+        /// </summary>
+        [Test]
+        public void SetUnlockedRegions_ReplacesTheOwnedArea()
+        {
+            _grid.SetUnlockedRegions(new List<GridRect> { Rect(0, 0, 4, 4) });
+
+            Assert.That(_grid.UnlockedCellCount, Is.EqualTo(16));
+            Assert.That(_grid.IsUnlocked(new GridPosition(3, 3)), Is.True);
+            Assert.That(_grid.IsUnlocked(new GridPosition(4, 0)), Is.False);
+            Assert.That(_grid.Validate(Rect(4, 0, 1, 1)), Is.EqualTo(PlacementFailure.AreaLocked));
+        }
+
+        [Test]
+        public void AFootprintStraddlingTheBoundary_IsRejected()
+        {
+            _grid.SetUnlockedRegions(new List<GridRect> { Rect(0, 0, 4, 4) });
+
+            Assert.That(_grid.Validate(Rect(3, 0, 2, 2)), Is.EqualTo(PlacementFailure.AreaLocked));
+            Assert.That(_grid.IsUnlocked(Rect(3, 0, 2, 2)), Is.False);
+        }
+
+        [Test]
+        public void UnlockRegion_AddsWithoutTakingAnythingBack()
+        {
+            _grid.SetUnlockedRegions(new List<GridRect> { Rect(0, 0, 4, 4) });
+            _grid.UnlockRegion(Rect(4, 0, 4, 4));
+
+            Assert.That(_grid.UnlockedCellCount, Is.EqualTo(32));
+            Assert.That(_grid.IsUnlocked(new GridPosition(0, 0)), Is.True);
+            Assert.That(_grid.IsUnlocked(new GridPosition(5, 1)), Is.True);
         }
 
         [Test]

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using AlphaTown.Data.Items;
 
 namespace AlphaTown.Data.Orders
 {
@@ -34,5 +36,17 @@ namespace AlphaTown.Data.Orders
 
         /// <summary>Flat hard-currency bonus. Normally zero — this is a real-money-equivalent faucet.</summary>
         int BonusHardCurrency { get; }
+
+        /// <summary>
+        /// Items granted on completion on top of the coins — this is how land deeds reach the
+        /// player. Empty on most templates.
+        /// </summary>
+        IReadOnlyList<ItemStack> BonusItems { get; }
+
+        /// <summary>
+        /// Chance from 0 to 1 that <see cref="BonusItems"/> is granted. Rolled once when the order
+        /// is generated and baked into it, so the player can see the deed before committing goods.
+        /// </summary>
+        float BonusItemChance { get; }
     }
 }

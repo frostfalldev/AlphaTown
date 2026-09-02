@@ -90,11 +90,13 @@ namespace AlphaTown.Gameplay.Orders
             if (requests.Count == 0) return null;
 
             var rewards = BuildRewards(template, rawCoins);
+            var itemRewards = RollBonusItems(template);
             var xpReward = Scale(rawXp, template.XpMultiplier);
 
             var expiresAt = template.TimeLimit.Ticks > 0 ? nowTicks + template.TimeLimit.Ticks : 0L;
 
-            return new Order(orderId, template.Id, template.Kind, requests, rewards, xpReward, nowTicks, expiresAt);
+            return new Order(orderId, template.Id, template.Kind, requests, rewards, itemRewards,
+                xpReward, nowTicks, expiresAt);
         }
 
         /// <summary>Every storable item that some unlocked recipe can produce.</summary>
@@ -142,6 +144,30 @@ namespace AlphaTown.Gameplay.Orders
                 rewards.Add(new CurrencyAmount(hard.Id, template.BonusHardCurrency));
 
             return rewards;
+        }
+
+        /// <summary>
+        /// Rolls the bonus drop once, here, rather than on completion. The player has to be able
+        /// to see the land deed on the order before deciding to fill it — a reward that only
+        /// materialised at hand-in would be indistinguishable from a slot machine.
+        /// </summary>
+        IReadOnlyList<ItemStack> RollBonusItems(IOrderTemplateDefinition template)
+        {
+            var bonus = template.BonusItems;
+            if (bonus == null || bonus.Count == 0) return Array.Empty<ItemStack>();
+
+            var chance = template.BonusItemChance;
+            if (chance <= 0f) return Array.Empty<ItemStack>();
+            if (chance < 1f && _random.NextDouble() >= chance) return Array.Empty<ItemStack>();
+
+            var granted = new List<ItemStack>(bonus.Count);
+            for (var i = 0; i < bonus.Count; i++)
+            {
+                if (bonus[i].IsEmpty) continue;
+                granted.Add(bonus[i]);
+            }
+
+            return granted;
         }
 
         int RandomInclusive(int min, int max)

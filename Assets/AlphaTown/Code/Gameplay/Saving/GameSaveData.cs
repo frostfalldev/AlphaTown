@@ -114,6 +114,9 @@ namespace AlphaTown.Gameplay.Saving
     [Serializable]
     public sealed class TownSaveData
     {
+        /// <summary>Land the player owns. Permanent, so this only ever grows.</summary>
+        public string[] UnlockedExpansionIds = Array.Empty<string>();
+
         public int NextBuildingNumber = 1;
         public BuildingSaveData[] Buildings = Array.Empty<BuildingSaveData>();
     }
@@ -147,6 +150,10 @@ namespace AlphaTown.Gameplay.Saving
         public int Kind;
         public ItemStackSaveData[] Requests = Array.Empty<ItemStackSaveData>();
         public CurrencyAmountSaveData[] CurrencyRewards = Array.Empty<CurrencyAmountSaveData>();
+
+        /// <summary>Bonus items, rolled at generation. Saved so the deed cannot be re-rolled.</summary>
+        public ItemStackSaveData[] ItemRewards = Array.Empty<ItemStackSaveData>();
+
         public int XpReward;
         public long CreatedAtTicks;
 

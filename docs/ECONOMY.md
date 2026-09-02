@@ -167,6 +167,8 @@ Everything below is data, changeable without a code change:
 | Build and upgrade costs, build times | `BuildingDefinition` levels |
 | Buildable town size | `TownDefinition` |
 | Order slot count and cooldowns | `OrderBoardDefinition` |
+| Land deed drop rate | `OrderTemplateDefinition` bonus items and chance |
+| Land cost and unlock order | `ExpansionDefinition` |
 | Auto-replant, queue size, speed | `ProducerDefinition` levels |
 
 Board capacity is still a constant (`GameWorld.HelicopterBoardCapacity`). It moves into data when
@@ -176,9 +178,9 @@ board upgrades exist.
 
 - **Rerolling an order costs nothing.** `OrderBoard.TryDiscard` is the hook;
   `CurrencySink.OrderReroll` is the reason code waiting for it.
-- **The main sink is now buildings.** `BuildingPurchase` and `BuildingUpgrade` are wired up —
-  see [BUILDINGS_AND_GRID.md](BUILDINGS_AND_GRID.md). Expansion and the market are still open, so
-  the drain is narrower than the faucet until those land.
+- **Sinks are buildings and land.** `BuildingPurchase`, `BuildingUpgrade` and
+  `ExpansionPurchase` are wired up. Land is gated by deeds rather than coins on purpose — see
+  [EXPANSION.md](EXPANSION.md) — so the market is the main coin sink still missing.
 - **Slot pacing has landed.** Each board slot now cools before refilling, authored per slot in
   `OrderBoardDefinition` — see [FARMING_AND_PACING.md](FARMING_AND_PACING.md).
 - **Speed-ups are not priced.** `Producer.TrySpeedUp` and `TryFinishNow` work; what they cost

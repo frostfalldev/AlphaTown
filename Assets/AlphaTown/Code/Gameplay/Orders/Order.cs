@@ -21,6 +21,7 @@ namespace AlphaTown.Gameplay.Orders
             OrderKind kind,
             IReadOnlyList<ItemStack> requests,
             IReadOnlyList<CurrencyAmount> currencyRewards,
+            IReadOnlyList<ItemStack> itemRewards,
             int xpReward,
             long createdAtTicks,
             long expiresAtTicks)
@@ -30,6 +31,7 @@ namespace AlphaTown.Gameplay.Orders
             Kind = kind;
             Requests = requests ?? Array.Empty<ItemStack>();
             CurrencyRewards = currencyRewards ?? Array.Empty<CurrencyAmount>();
+            ItemRewards = itemRewards ?? Array.Empty<ItemStack>();
             XpReward = xpReward;
             CreatedAtTicks = createdAtTicks;
             ExpiresAtTicks = expiresAtTicks;
@@ -40,6 +42,12 @@ namespace AlphaTown.Gameplay.Orders
         public OrderKind Kind { get; }
         public IReadOnlyList<ItemStack> Requests { get; }
         public IReadOnlyList<CurrencyAmount> CurrencyRewards { get; }
+
+        /// <summary>
+        /// Items paid on completion — how land deeds reach the player. Rolled when the order was
+        /// generated, so the deed is visible before any goods are committed to it.
+        /// </summary>
+        public IReadOnlyList<ItemStack> ItemRewards { get; }
         public int XpReward { get; }
         public long CreatedAtTicks { get; }
 

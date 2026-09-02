@@ -62,6 +62,21 @@ namespace AlphaTown.Tests.EditMode
         /// <summary>Every helicopter slot cools for ten minutes after its order clears.</summary>
         public const int OrderSlotCooldownSeconds = 600;
 
+        // Expansion. Added only when Build is asked for it, so every other test keeps a town
+        // that is unlocked end to end.
+        public const string Deed = "land_deed";
+        public const string ExpansionEast = "expansion.east";
+        public const string ExpansionNorth = "expansion.north";
+        public const string ExpansionNortheast = "expansion.northeast";
+
+        public const int EastDeedCost = 2;
+        public const int NorthDeedCost = 3;
+        public const int NortheastDeedCost = 4;
+        public const int NortheastCoinCost = 500;
+
+        /// <summary>The town starts owning the bottom-left quarter of the 8x8 grid.</summary>
+        public const int StartingAreaSize = 4;
+
         /// <summary>Small enough that out-of-bounds cases are easy to write.</summary>
         public const int TownWidth = 8;
         public const int TownHeight = 8;
@@ -77,7 +92,8 @@ namespace AlphaTown.Tests.EditMode
                                          int startingCoins = 0, int startingGems = 0,
                                          IOrderTemplateDefinition orderTemplate = null,
                                          bool includeFarming = false,
-                                         IOrderBoardDefinition orderBoard = null)
+                                         IOrderBoardDefinition orderBoard = null,
+                                         bool includeExpansion = false)
         {
             var breadRecipe = new FakeRecipe(
                 BreadRecipe,
@@ -103,11 +119,14 @@ namespace AlphaTown.Tests.EditMode
                 .WithCurrency(new FakeCurrency(Gems, CurrencyKind.Hard, startingGems))
                 .WithProgressionCurve(new FakeProgressionCurve(xpCurve ?? DefaultXpCurve))
                 .WithOrderTemplate(orderTemplate ?? SingleBreadTemplate())
-                .WithTown(new FakeTownDefinition(TownWidth, TownHeight))
+                .WithTown(includeExpansion
+                    ? new FakeTownDefinition(TownWidth, TownHeight, StartingArea())
+                    : new FakeTownDefinition(TownWidth, TownHeight))
                 .WithOrderBoard(orderBoard ?? DefaultOrderBoard());
 
             AddBuildings(database);
             if (includeFarming) AddFarming(database);
+            if (includeExpansion) AddExpansion(database);
 
             database.WithProducer(new FakeProducerDefinition(
                 Bakery,
@@ -116,6 +135,53 @@ namespace AlphaTown.Tests.EditMode
                 new FakeProducerLevel(queueCapacity: 5, parallelSlots: 2)));
 
             return database;
+        }
+
+        public static GridRect StartingArea() =>
+            new GridRect(GridPosition.Zero, new GridSize(StartingAreaSize, StartingAreaSize));
+
+        /// <summary>
+        /// Three plots around the starting quarter. East and North grow straight off it; Northeast
+        /// requires East first, which is what keeps land spreading outward instead of letting a
+        /// player buy a far corner.
+        /// </summary>
+        static void AddExpansion(FakeDatabase database)
+        {
+            // A deed is an item that costs no barn space — the cleanest way to hold a token the
+            // player never stockpiles by the hundred.
+            database.WithItem(new FakeItem(Deed, isStorable: false, coinValue: 0, xpValue: 0));
+
+            database.WithExpansion(new FakeExpansionDefinition(
+                ExpansionEast,
+                new GridRect(new GridPosition(4, 0), new GridSize(4, 4)),
+                new[] { new ItemStack(Deed, EastDeedCost) }));
+
+            database.WithExpansion(new FakeExpansionDefinition(
+                ExpansionNorth,
+                new GridRect(new GridPosition(0, 4), new GridSize(4, 4)),
+                new[] { new ItemStack(Deed, NorthDeedCost) })
+            {
+                SortOrder = 1
+            });
+
+            database.WithExpansion(new FakeExpansionDefinition(
+                ExpansionNortheast,
+                new GridRect(new GridPosition(4, 4), new GridSize(4, 4)),
+                new[] { new ItemStack(Deed, NortheastDeedCost) },
+                new[] { new CurrencyAmount(Coins, NortheastCoinCost) })
+            {
+                RequiresExpansionId = ExpansionEast,
+                SortOrder = 2
+            });
+        }
+
+        /// <summary>A bread order that always carries a land deed. Deeds come from orders.</summary>
+        public static FakeOrderTemplate DeedTemplate(int deedCount = 1)
+        {
+            var template = SingleBreadTemplate();
+            template.BonusItems = new[] { new ItemStack(Deed, deedCount) };
+            template.BonusItemChance = 1f;
+            return template;
         }
 
         /// <summary>Four helicopter slots, each cooling for ten minutes after its order clears.</summary>

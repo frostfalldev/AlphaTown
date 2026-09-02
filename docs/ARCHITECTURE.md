@@ -35,7 +35,8 @@ anything else.
         │ AlphaTown.Gameplay      the simulation        │
         │   BarnInventory · Producer · Wallet           │
         │   TownProgression · OrderBoard                │
-        │   TownGrid · TownBuildings · GameWorld        │
+        │   TownGrid · TownBuildings · TownExpansion    │
+        │   GameWorld                                   │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Services      clock, save, remote   │
@@ -46,7 +47,8 @@ anything else.
         │   ItemDefinition · RecipeDefinition           │
         │   CurrencyDefinition · ProgressionCurve       │
         │   OrderTemplateDefinition · BuildingDefinition│
-        │   TownDefinition · reason-code enums          │
+        │   TownDefinition · ExpansionDefinition        │
+        │   reason-code enums                           │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Core          no dependencies       │
@@ -197,9 +199,10 @@ Full detail, including the reason-code taxonomy and the tuning levers, is in
 and Gameplay (placement) need them. Integers only: the simulation never deals in world units,
 which keeps placement exact and save data stable across art changes.
 
-`TownGrid` answers one question — which building instance owns this cell — and nothing else. It is
-deliberately not a tilemap engine; a grid that also understood buildings would become a second copy
-of the building system and stop being testable on its own.
+`TownGrid` answers two questions — which building instance owns this cell, and whether the player
+owns the land under it — and nothing else. It is deliberately not a tilemap engine; a grid that
+also understood buildings would become a second copy of the building system and stop being testable
+on its own.
 
 ### Buildings — `AlphaTown.Gameplay.Buildings`
 
@@ -220,6 +223,19 @@ stay independently testable.
 
 Full detail, including both upgrade paths and the expansion hook, is in
 [BUILDINGS_AND_GRID.md](BUILDINGS_AND_GRID.md).
+
+### Expansion — `AlphaTown.Gameplay.Expansion`
+
+`TownExpansion` owns which land the player has bought. The gate is **land deeds** — a non-storable
+item earned from orders — not coins: coins already buy buildings, and a coin-gated town would grow
+at whatever rate a player can grind the order board, which is no pacing at all.
+
+State is a set of owned expansion ids, and the grid's unlocked mask is **rebuilt from that set**
+rather than accumulated, so there is one source of truth and no way for the two to drift.
+
+`TownGrid.IsUnlocked` was written as a stub in the grid phase for exactly this: placement,
+validation and moving needed no change when land arrived, because `PlacementFailure.AreaLocked` was
+already wired through. Detail in [EXPANSION.md](EXPANSION.md).
 
 ### Save — `AlphaTown.Services.Save`
 
@@ -270,8 +286,9 @@ what they need through their constructors.
 chain (including a twenty-hour absence resolving in one `Sync`), clock pause/resume continuity,
 wallet atomicity and ledger reconciliation, XP cascading and cap behaviour, order generation and
 expiry, order slot pacing and its persistence, the farming loop including the offline auto-replant
-bound, grid placement rules, building construction and both upgrade paths, a save round trip
-through the real serializer, and the full economic loop end to end.
+bound, grid placement rules, building construction and both upgrade paths, land purchase with its
+prerequisite chain and restore ordering, a save round trip through the real serializer, and the
+full economic loop end to end.
 
 `TestContent` is tuned so exactly one item is producible at town level 1, which makes generated
 orders deterministic without depending on an RNG seed. Randomness is injected into `GameWorld`

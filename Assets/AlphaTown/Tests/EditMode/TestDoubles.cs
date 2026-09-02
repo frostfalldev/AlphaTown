@@ -4,6 +4,7 @@ using AlphaTown.Core.Spatial;
 using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Economy;
+using AlphaTown.Data.Expansion;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
 using AlphaTown.Data.Production;
@@ -193,6 +194,8 @@ namespace AlphaTown.Tests.EditMode
         public float CoinMultiplier { get; set; } = 1f;
         public float XpMultiplier { get; set; } = 1f;
         public int BonusHardCurrency { get; set; }
+        public IReadOnlyList<ItemStack> BonusItems { get; set; } = Array.Empty<ItemStack>();
+        public float BonusItemChance { get; set; } = 1f;
     }
 
     internal sealed class FakeOrderBoardDefinition : IOrderBoardDefinition
@@ -280,13 +283,42 @@ namespace AlphaTown.Tests.EditMode
 
     internal sealed class FakeTownDefinition : ITownDefinition
     {
+        /// <summary>A zero-sized starting area means the whole grid is owned from the start.</summary>
         public FakeTownDefinition(int width, int height)
+            : this(width, height, new GridRect(GridPosition.Zero, new GridSize(0, 0)))
+        {
+        }
+
+        public FakeTownDefinition(int width, int height, GridRect startingArea)
         {
             Size = new GridSize(width, height);
+            StartingArea = startingArea;
         }
 
         public string Id => "town.test";
         public GridSize Size { get; }
+        public GridRect StartingArea { get; }
+    }
+
+    internal sealed class FakeExpansionDefinition : IExpansionDefinition
+    {
+        public FakeExpansionDefinition(string id, GridRect region, ItemStack[] itemCost = null,
+                                       CurrencyAmount[] currencyCost = null)
+        {
+            Id = id;
+            Region = region;
+            ItemCost = itemCost ?? Array.Empty<ItemStack>();
+            CurrencyCost = currencyCost ?? Array.Empty<CurrencyAmount>();
+        }
+
+        public string Id { get; }
+        public string DisplayNameKey => "expansion." + Id;
+        public GridRect Region { get; }
+        public int UnlockLevel { get; set; } = 1;
+        public string RequiresExpansionId { get; set; } = string.Empty;
+        public IReadOnlyList<ItemStack> ItemCost { get; }
+        public IReadOnlyList<CurrencyAmount> CurrencyCost { get; }
+        public int SortOrder { get; set; }
     }
 
     /// <summary>
@@ -330,12 +362,16 @@ namespace AlphaTown.Tests.EditMode
         readonly Dictionary<string, IOrderBoardDefinition> _orderBoards =
             new Dictionary<string, IOrderBoardDefinition>();
 
+        readonly Dictionary<string, IExpansionDefinition> _expansions =
+            new Dictionary<string, IExpansionDefinition>();
+
         readonly List<IItemDefinition> _itemList = new List<IItemDefinition>();
         readonly List<IRecipeDefinition> _recipeList = new List<IRecipeDefinition>();
         readonly List<ICurrencyDefinition> _currencyList = new List<ICurrencyDefinition>();
         readonly List<IOrderTemplateDefinition> _orderTemplateList = new List<IOrderTemplateDefinition>();
         readonly List<IBuildingDefinition> _buildingList = new List<IBuildingDefinition>();
         readonly List<IOrderBoardDefinition> _orderBoardList = new List<IOrderBoardDefinition>();
+        readonly List<IExpansionDefinition> _expansionList = new List<IExpansionDefinition>();
 
         public IStorageDefinition DefaultStorage { get; set; }
         public ICurrencyDefinition SoftCurrency { get; set; }
@@ -349,6 +385,7 @@ namespace AlphaTown.Tests.EditMode
         public IReadOnlyList<IOrderTemplateDefinition> OrderTemplates => _orderTemplateList;
         public IReadOnlyList<IBuildingDefinition> Buildings => _buildingList;
         public IReadOnlyList<IOrderBoardDefinition> OrderBoards => _orderBoardList;
+        public IReadOnlyList<IExpansionDefinition> Expansions => _expansionList;
 
         public FakeDatabase WithItem(IItemDefinition item)
         {
@@ -408,6 +445,13 @@ namespace AlphaTown.Tests.EditMode
             return this;
         }
 
+        public FakeDatabase WithExpansion(IExpansionDefinition expansion)
+        {
+            _expansions[expansion.Id] = expansion;
+            _expansionList.Add(expansion);
+            return this;
+        }
+
         public FakeDatabase WithTown(ITownDefinition town)
         {
             TownDefinition = town;
@@ -443,6 +487,9 @@ namespace AlphaTown.Tests.EditMode
 
         public bool TryGetOrderBoard(string id, out IOrderBoardDefinition board) =>
             _orderBoards.TryGetValue(id ?? string.Empty, out board);
+
+        public bool TryGetExpansion(string id, out IExpansionDefinition expansion) =>
+            _expansions.TryGetValue(id ?? string.Empty, out expansion);
     }
 
     /// <summary>Save store backed by a dictionary, so save tests never touch the filesystem.</summary>

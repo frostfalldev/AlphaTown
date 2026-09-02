@@ -3,6 +3,7 @@ using AlphaTown.Core.Diagnostics;
 using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Definitions;
 using AlphaTown.Data.Economy;
+using AlphaTown.Data.Expansion;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
 using AlphaTown.Data.Production;
@@ -33,6 +34,7 @@ namespace AlphaTown.Data.Catalog
         [SerializeField] OrderTemplateDefinition[] _orderTemplates;
         [SerializeField] BuildingDefinition[] _buildings;
         [SerializeField] OrderBoardDefinition[] _orderBoards;
+        [SerializeField] ExpansionDefinition[] _expansions;
 
         [Header("Well-known entries")]
         [SerializeField]
@@ -61,6 +63,7 @@ namespace AlphaTown.Data.Catalog
         Dictionary<string, IOrderTemplateDefinition> _orderTemplatesById;
         Dictionary<string, IBuildingDefinition> _buildingsById;
         Dictionary<string, IOrderBoardDefinition> _orderBoardsById;
+        Dictionary<string, IExpansionDefinition> _expansionsById;
 
         IItemDefinition[] _itemList;
         IRecipeDefinition[] _recipeList;
@@ -68,6 +71,7 @@ namespace AlphaTown.Data.Catalog
         IOrderTemplateDefinition[] _orderTemplateList;
         IBuildingDefinition[] _buildingList;
         IOrderBoardDefinition[] _orderBoardList;
+        IExpansionDefinition[] _expansionList;
 
         public IStorageDefinition DefaultStorage => _defaultStorage;
         public ICurrencyDefinition SoftCurrency => _softCurrency;
@@ -129,6 +133,15 @@ namespace AlphaTown.Data.Catalog
             }
         }
 
+        public IReadOnlyList<IExpansionDefinition> Expansions
+        {
+            get
+            {
+                EnsureIndexed();
+                return _expansionList;
+            }
+        }
+
         public bool TryGetItem(string id, out IItemDefinition item)
         {
             EnsureIndexed();
@@ -177,6 +190,12 @@ namespace AlphaTown.Data.Catalog
             return _orderBoardsById.TryGetValue(id ?? string.Empty, out board);
         }
 
+        public bool TryGetExpansion(string id, out IExpansionDefinition expansion)
+        {
+            EnsureIndexed();
+            return _expansionsById.TryGetValue(id ?? string.Empty, out expansion);
+        }
+
         /// <summary>Rebuilds the indexes. Call after hot-reloading content in the editor.</summary>
         public void Reindex()
         {
@@ -189,6 +208,7 @@ namespace AlphaTown.Data.Catalog
                 Index<OrderTemplateDefinition, IOrderTemplateDefinition>(_orderTemplates, "order template");
             _buildingsById = Index<BuildingDefinition, IBuildingDefinition>(_buildings, "building");
             _orderBoardsById = Index<OrderBoardDefinition, IOrderBoardDefinition>(_orderBoards, "order board");
+            _expansionsById = Index<ExpansionDefinition, IExpansionDefinition>(_expansions, "expansion");
 
             _itemList = ToArray(_itemsById);
             _recipeList = ToArray(_recipesById);
@@ -196,6 +216,7 @@ namespace AlphaTown.Data.Catalog
             _orderTemplateList = ToArray(_orderTemplatesById);
             _buildingList = ToArray(_buildingsById);
             _orderBoardList = ToArray(_orderBoardsById);
+            _expansionList = ToArray(_expansionsById);
         }
 
         void OnEnable() => _itemsById = null;

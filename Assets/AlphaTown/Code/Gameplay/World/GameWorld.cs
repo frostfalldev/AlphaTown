@@ -8,8 +8,10 @@ using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
+using AlphaTown.Data.Town;
 using AlphaTown.Gameplay.Buildings;
 using AlphaTown.Gameplay.Economy;
+using AlphaTown.Gameplay.Expansion;
 using AlphaTown.Gameplay.Grid;
 using AlphaTown.Gameplay.Inventory;
 using AlphaTown.Gameplay.Orders;
@@ -88,8 +90,14 @@ namespace AlphaTown.Gameplay.World
 
             var town = database.TownDefinition;
             var gridSize = town != null && town.Size.IsValid ? town.Size : DefaultTownSize;
+            var grid = new TownGrid(gridSize);
+
+            // Expansion owns the grid's unlocked mask, so it is built before anything can be
+            // placed. With no starting area authored it leaves the whole grid owned, which is what
+            // a project without land content expects.
+            Expansion = new TownExpansion(grid, database, events, wallet, Barn, progression, town);
             Buildings = new TownBuildings(
-                new TownGrid(gridSize), database, clock, events, wallet, Barn, progression, this);
+                grid, database, clock, events, wallet, Barn, progression, this);
         }
 
         public BarnInventory Barn { get; }
@@ -108,6 +116,9 @@ namespace AlphaTown.Gameplay.World
 
         /// <summary>Placed buildings and the grid they sit on. The primary coin sink.</summary>
         public TownBuildings Buildings { get; }
+
+        /// <summary>Which land the player owns. Gated by deeds, not coins.</summary>
+        public TownExpansion Expansion { get; }
 
         /// <summary>Seeds a brand-new town: starting balances, then a first set of orders.</summary>
         public void InitialiseNewPlayer()
@@ -216,7 +227,7 @@ namespace AlphaTown.Gameplay.World
                 },
                 Producers = new ProducerSaveData[_producers.Count],
                 OrderBoards = new[] { ToBoardData(HelicopterOrders) },
-                Town = ToTownData(this.Buildings)
+                Town = ToTownData(this.Buildings, this.Expansion)
             };
 
             for (var i = 0; i < _producers.Count; i++)
@@ -275,9 +286,14 @@ namespace AlphaTown.Gameplay.World
                 }
             }
 
+            var town = save.Town ?? new TownSaveData();
+
+            // Land before buildings: placement validation checks the unlocked mask, so a building
+            // standing on bought land would be dropped if the land had not been restored yet.
+            this.Expansion.RestoreState(town.UnlockedExpansionIds);
+
             // Buildings after producers: a restored building matches itself back to the producer
             // that was saved alongside it rather than creating a second one.
-            var town = save.Town ?? new TownSaveData();
             this.Buildings.RestoreState(ToBuildingRestoreData(town.Buildings), town.NextBuildingNumber);
 
             RestoreBoards(save.OrderBoards);
@@ -436,6 +452,7 @@ namespace AlphaTown.Gameplay.World
                     Kind = (int)order.Kind,
                     Requests = ToStackData(order.Requests),
                     CurrencyRewards = ToCurrencyData(order.CurrencyRewards),
+                    ItemRewards = ToStackData(order.ItemRewards),
                     XpReward = order.XpReward,
                     CreatedAtTicks = order.CreatedAtTicks,
                     ExpiresAtTicks = order.ExpiresAtTicks
@@ -445,11 +462,12 @@ namespace AlphaTown.Gameplay.World
             return data;
         }
 
-        static TownSaveData ToTownData(TownBuildings buildings)
+        static TownSaveData ToTownData(TownBuildings buildings, TownExpansion expansion)
         {
             var all = buildings.All;
             var data = new TownSaveData
             {
+                UnlockedExpansionIds = expansion.Snapshot().ToArray(),
                 NextBuildingNumber = buildings.NextInstanceNumber,
                 Buildings = new BuildingSaveData[all.Count]
             };
@@ -579,6 +597,7 @@ namespace AlphaTown.Gameplay.World
                     (OrderKind)entry.Kind,
                     ToStacks(entry.Requests),
                     ToCurrencyAmounts(entry.CurrencyRewards),
+                    ToStacks(entry.ItemRewards),
                     entry.XpReward,
                     entry.CreatedAtTicks,
                     entry.ExpiresAtTicks));

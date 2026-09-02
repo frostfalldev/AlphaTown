@@ -30,6 +30,29 @@ Then open `Town.unity` and press Play. The two content steps also have their own
 under **AlphaTown ▸ Content** and can be re-run independently; both update assets in place, so ids
 already written into a save stay valid.
 
+### Straight to an APK
+
+Once the Unity project exists (docs/SETUP.md), everything above plus the build is one command:
+
+```bash
+./tools/build-android.sh              # development APK — keeps Log.Info, use this to test
+./tools/build-android.sh --install    # and adb install -r it onto the attached device
+./tools/build-android.sh --release    # release APK
+```
+
+It needs the **Android Build Support** module in your Unity install; point `UNITY` at the editor
+binary if the script cannot find it. In-Editor the same thing is **AlphaTown ▸ Build ▸ Android APK
+(development)**, and CI can call
+`-executeMethod AlphaTown.EditorTools.Build.AndroidBuilder.BuildFromCommandLine`.
+
+Build **development** for testing. `Log.Info` is compiled out of release builds, and those are the
+lines that report which input backend is live and whether the clock is trusted — the two things
+worth knowing when something does not respond. Read them with:
+
+```bash
+adb logcat -s Unity | grep AlphaTown
+```
+
 > The scene is **generated, not committed**. A `.unity` file is a wall of GUIDs — unreviewable in a
 > diff and a merge conflict every time two people touch it. Generating it means the scene's
 > contents live in `MainSceneBuilder.cs`, where they can be read and reviewed. Rebuilding is

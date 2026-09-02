@@ -1,4 +1,5 @@
 using System.IO;
+using AlphaTown.Core.Spatial;
 using AlphaTown.Data.Catalog;
 using AlphaTown.Gameplay.Bootstrap;
 using AlphaTown.UI.CameraControl;
@@ -38,8 +39,12 @@ namespace AlphaTown.EditorTools.Setup
         /// The design resolution the HUD's sizes are written against. UI Toolkit scales the whole
         /// panel from here, so a 26px label is 26px on a reference-sized screen and proportional
         /// everywhere else.
+        ///
+        /// Landscape, matching <c>AlphaTownProjectProfile.AllowLandscape</c>. It was portrait, and
+        /// on a landscape phone that made every size in the HUD roughly half what it was written
+        /// to be — a mismatch that does not fail, it just quietly renders wrong.
         /// </summary>
-        static readonly Vector2Int ReferenceResolution = new Vector2Int(1080, 1920);
+        static readonly Vector2Int ReferenceResolution = new Vector2Int(1920, 1080);
 
         [MenuItem("AlphaTown/Content/Build Playable Scene", false, 21)]
         internal static void Build()
@@ -64,7 +69,7 @@ namespace AlphaTown.EditorTools.Setup
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            CreateCamera(out var camera, out var cameraController);
+            CreateCamera(database, out var camera, out var cameraController);
             CreateLight();
 
             var runner = CreateRunner(database);
@@ -86,15 +91,34 @@ namespace AlphaTown.EditorTools.Setup
             Debug.Log("[AlphaTown] Playable scene written to " + ScenePath + ".");
         }
 
-        static void CreateCamera(out Camera camera, out IsoCameraController control)
+        /// <summary>
+        /// Frames the camera on the land the player actually starts with, read from the town
+        /// definition rather than hard-coded — so re-tuning the starting area in content moves the
+        /// opening shot with it.
+        ///
+        /// Without this the camera opens at the world origin and is dragged into bounds by the
+        /// clamp on the first frame, which lands somewhere near the town rather than on it.
+        /// </summary>
+        static void CreateCamera(GameDatabase database, out Camera camera, out IsoCameraController control)
         {
+            var town = database.TownDefinition;
+            var size = town != null && town.Size.IsValid ? town.Size : new GridSize(24, 24);
+            var start = town != null && town.StartingArea.IsValid
+                ? town.StartingArea
+                : new GridRect(GridPosition.Zero, size);
+
+            var focus = IsoGridMath.RectCentreToWorld(start);
+
             var go = new GameObject("Main Camera");
             go.tag = "MainCamera";
-            go.transform.position = new Vector3(0f, 0f, -10f);
+            go.transform.position = new Vector3(focus.x, focus.y, -10f);
 
             camera = go.AddComponent<Camera>();
             camera.orthographic = true;
-            camera.orthographicSize = 6f;
+
+            // Close enough that the starting fields are worth looking at. The camera clamps to the
+            // map, so this is a starting frame, not a limit.
+            camera.orthographicSize = 4.5f;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.16f, 0.20f, 0.26f);
 
@@ -105,7 +129,7 @@ namespace AlphaTown.EditorTools.Setup
             go.AddComponent<AudioListener>();
 
             control = go.AddComponent<IsoCameraController>();
-            control.SetGridSize(new Vector2Int(24, 24));
+            control.SetGridSize(new Vector2Int(size.Width, size.Height));
         }
 
         /// <summary>

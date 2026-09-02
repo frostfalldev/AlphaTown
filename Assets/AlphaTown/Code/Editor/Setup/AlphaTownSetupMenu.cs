@@ -37,7 +37,7 @@ namespace AlphaTown.EditorTools.Setup
         /// running them the other way round would produce a scene wired to nothing.
         /// </summary>
         [MenuItem("AlphaTown/Setup/Build Playable Project", false, 1)]
-        internal static void BuildPlayableProject()
+        public static void BuildPlayableProject()
         {
             PlayerSettingsConfigurator.Apply();
             QualityLevelConfigurator.Apply();

@@ -36,7 +36,15 @@ git clone <repo> AlphaTown
 Then follow [docs/SETUP.md](docs/SETUP.md) to create the Unity project and merge it in. Once it
 opens, run **AlphaTown ▸ Setup ▸ Build Playable Project** — that applies the project settings,
 generates the sample content and builds `Assets/AlphaTown/Scenes/Town.unity`. Open it and press
-Play. See [docs/VERTICAL_SLICE.md](docs/VERTICAL_SLICE.md).
+Play.
+
+For a device build, that whole chain plus the APK is one command:
+
+```bash
+./tools/build-android.sh --install
+```
+
+See [docs/VERTICAL_SLICE.md](docs/VERTICAL_SLICE.md).
 
 ## Documentation
 
@@ -60,6 +68,7 @@ Assets/AlphaTown/   first-party content — Art, Audio, Code, Content, Prefabs, 
 Assets/Settings/    URP assets, renderers, volume profiles
 Assets/ThirdParty/  asset-store and vendor SDK imports, kept unmodified
 docs/               setup, architecture and settings documentation
+tools/              build scripts
 ```
 
 Code is split into layered assemblies — `Core → Data → Services → Gameplay → UI` — so references

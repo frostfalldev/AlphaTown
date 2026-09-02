@@ -24,6 +24,7 @@ namespace AlphaTown.EditorTools.Setup
             report.AppendLine("[AlphaTown] Player Settings");
 
             ApplyIdentity(report);
+            ApplyInputHandling(report);
             ApplyOrientation(report);
             ApplyRenderingAndPerformance(report);
             ApplyAndroid(report);
@@ -54,6 +55,36 @@ namespace AlphaTown.EditorTools.Setup
             report.AppendLine("    application id:    " + AlphaTownProjectProfile.ApplicationIdentifier +
                               "   (placeholder — confirm before first upload)");
             report.AppendLine("    version:           " + AlphaTownProjectProfile.BundleVersion);
+        }
+
+        /// <summary>
+        /// Allows the legacy Input class alongside the new Input System.
+        ///
+        /// IsoCameraController reads Input.GetTouch. With Active Input Handling left on
+        /// "Input System Package (New)" — the Unity 6 default — that throws at runtime rather than
+        /// failing at compile time, so it looks like a camera bug rather than a settings one.
+        ///
+        /// Unity requires an editor restart for this to take effect.
+        /// </summary>
+        static void ApplyInputHandling(StringBuilder report)
+        {
+            report.AppendLine();
+            report.AppendLine("  Input");
+
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+            if (assets == null || assets.Length == 0 || assets[0] == null)
+            {
+                report.AppendLine("    ? could not open ProjectSettings.asset — set Active Input " +
+                                  "Handling to Both by hand");
+                return;
+            }
+
+            // 0 = Input Manager (Old), 1 = Input System Package (New), 2 = Both.
+            var serialized = new SerializedObject(assets[0]);
+            if (!SerializedSettingWriter.TrySet(serialized, "activeInputHandler", 2, report)) return;
+
+            serialized.ApplyModifiedProperties();
+            report.AppendLine("    active input handling: Both   (restart the editor to apply)");
         }
 
         static void ApplyOrientation(StringBuilder report)

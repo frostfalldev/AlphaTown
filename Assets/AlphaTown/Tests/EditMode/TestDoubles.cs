@@ -379,6 +379,7 @@ namespace AlphaTown.Tests.EditMode
         public ICurrencyDefinition HardCurrency { get; set; }
         public IProgressionCurve ProgressionCurve { get; set; }
         public ITownDefinition TownDefinition { get; set; }
+        public INewGameDefinition NewGame { get; set; }
 
         public IReadOnlyList<IItemDefinition> Items => _itemList;
         public IReadOnlyList<IRecipeDefinition> Recipes => _recipeList;
@@ -456,6 +457,12 @@ namespace AlphaTown.Tests.EditMode
         public FakeDatabase WithTown(ITownDefinition town)
         {
             TownDefinition = town;
+            return this;
+        }
+
+        public FakeDatabase WithNewGame(INewGameDefinition newGame)
+        {
+            NewGame = newGame;
             return this;
         }
 

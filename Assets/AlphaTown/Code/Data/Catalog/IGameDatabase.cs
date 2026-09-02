@@ -51,5 +51,8 @@ namespace AlphaTown.Data.Catalog
 
         /// <summary>Town bounds and layout config. Optional — the world falls back to defaults.</summary>
         ITownDefinition TownDefinition { get; }
+
+        /// <summary>What a brand-new town starts with. Optional; without it the town starts empty.</summary>
+        INewGameDefinition NewGame { get; }
     }
 }

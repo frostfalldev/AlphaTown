@@ -78,6 +78,7 @@ namespace AlphaTown.Data.Catalog
         public ICurrencyDefinition HardCurrency => _hardCurrency;
         public IProgressionCurve ProgressionCurve => _progressionCurve;
         public ITownDefinition TownDefinition => _townDefinition;
+        public INewGameDefinition NewGame => _newGame;
 
         public IReadOnlyList<IItemDefinition> Items
         {

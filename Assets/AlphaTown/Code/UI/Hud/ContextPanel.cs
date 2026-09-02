@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using AlphaTown.Core.Timing;
 using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Catalog;
@@ -25,6 +26,8 @@ namespace AlphaTown.UI.Hud
         readonly IGameClock _clock;
         readonly Action<CommandResult> _report;
         readonly Action _onBuildRequested;
+        readonly Action _onSickleRequested;
+        readonly List<BuildingInstance> _harvestable = new List<BuildingInstance>(32);
 
         readonly Label _title;
         readonly Label _detail;
@@ -32,19 +35,22 @@ namespace AlphaTown.UI.Hud
         readonly VisualElement _progressFill;
         readonly Button _primary;
         readonly Button _secondary;
+        readonly Button _tertiary;
 
         public ContextPanel(
             TownCommands commands,
             IGameDatabase database,
             IGameClock clock,
             Action<CommandResult> report,
-            Action onBuildRequested)
+            Action onBuildRequested,
+            Action onSickleRequested)
         {
             _commands = commands;
             _database = database;
             _clock = clock;
             _report = report;
             _onBuildRequested = onBuildRequested;
+            _onSickleRequested = onSickleRequested;
 
             var card = UiKit.Card();
             card.style.minWidth = 420f;
@@ -55,13 +61,21 @@ namespace AlphaTown.UI.Hud
             _progressTrack = UiKit.ProgressBar(out _progressFill);
             _progressTrack.style.display = DisplayStyle.None;
 
-            // Both buttons are built once and re-pointed through userData. Rebuilding them on
-            // every refresh would drop a press that landed in the same frame as a tick.
+            // The three buttons are built once and re-pointed through userData. Rebuilding them
+            // on every refresh would drop a press that landed in the same frame as a tick.
+            //
+            // Always in the same order — main action, tool, upgrade — so the button under the
+            // thumb does not change meaning between one selection and the next. Wrapping, because
+            // three touch targets and a long cost label do not fit a narrow phone in one row.
             var buttons = UiKit.Row();
+            buttons.style.flexWrap = Wrap.Wrap;
+
             _primary = UiKit.Action("", () => Invoke(_primary));
             _secondary = UiKit.Action("", () => Invoke(_secondary));
+            _tertiary = UiKit.Action("", () => Invoke(_tertiary));
             buttons.Add(_primary);
             buttons.Add(_secondary);
+            buttons.Add(_tertiary);
 
             var body = UiKit.Column(10f);
             body.Add(_title);
@@ -124,6 +138,7 @@ namespace AlphaTown.UI.Hud
 
             SetButton(_primary, owned ? "Build" : "", _onBuildRequested, owned);
             SetButton(_secondary, "", null, false);
+            SetButton(_tertiary, "", null, false);
         }
 
         void ShowUnderConstruction(BuildingInstance building)
@@ -139,6 +154,7 @@ namespace AlphaTown.UI.Hud
             SetProgress(building.Progress(_clock.UtcNowTicks));
             SetButton(_primary, "", null, false);
             SetButton(_secondary, "", null, false);
+            SetButton(_tertiary, "", null, false);
         }
 
         void ShowProducer(BuildingInstance building, Producer producer)
@@ -176,6 +192,7 @@ namespace AlphaTown.UI.Hud
                     !string.IsNullOrEmpty(recipeId));
             }
 
+            AddSickleButton(producer.HasReadyGoods);
             AddUpgradeButton(building);
         }
 
@@ -187,7 +204,28 @@ namespace AlphaTown.UI.Hud
             _detail.text = "Nothing is produced here.";
             SetProgress(-1f);
             SetButton(_primary, "", null, false);
+            SetButton(_secondary, "", null, false);
             AddUpgradeButton(building);
+        }
+
+        /// <summary>
+        /// Offers the sickle, and says how many fields are waiting.
+        ///
+        /// The count is the whole argument for picking the tool up. "Sickle" alone is a mode with
+        /// no stated benefit; "Sickle (6)" tells the player exactly what it saves them.
+        /// </summary>
+        void AddSickleButton(bool hasReadyGoods)
+        {
+            if (!hasReadyGoods || _onSickleRequested == null)
+            {
+                SetButton(_secondary, "", null, false);
+                return;
+            }
+
+            _commands.CollectHarvestable(_harvestable);
+            var label = _harvestable.Count > 1 ? "Sickle (" + _harvestable.Count + ")" : "Sickle";
+
+            SetButton(_secondary, label, _onSickleRequested, true);
         }
 
         void AddUpgradeButton(BuildingInstance building)
@@ -195,7 +233,7 @@ namespace AlphaTown.UI.Hud
             var next = NextLevelOf(building);
             if (next == null)
             {
-                SetButton(_secondary, "Max level", null, false);
+                SetButton(_tertiary, "Max level", null, false);
                 return;
             }
 
@@ -203,7 +241,7 @@ namespace AlphaTown.UI.Hud
             var affordable = world.Wallet.CanAffordAll(next.CurrencyCost) &&
                              world.Barn.ContainsAll(next.ItemCost);
 
-            SetButton(_secondary, "Upgrade  " + DescribeCost(next),
+            SetButton(_tertiary, "Upgrade  " + DescribeCost(next),
                 () => Run(_commands.Upgrade(building.InstanceId)), affordable);
         }
 
@@ -275,6 +313,7 @@ namespace AlphaTown.UI.Hud
             SetProgress(-1f);
             SetButton(_primary, primary == null ? "" : "OK", primary, primary != null);
             SetButton(_secondary, secondary == null ? "" : "OK", secondary, secondary != null);
+            SetButton(_tertiary, "", null, false);
         }
 
         /// <summary>Negative hides the bar entirely — there is nothing timed to show.</summary>

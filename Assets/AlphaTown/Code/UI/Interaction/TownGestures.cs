@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using AlphaTown.Core.Spatial;
 using AlphaTown.Gameplay.Bootstrap;
+using AlphaTown.Gameplay.Buildings;
 using AlphaTown.UI.CameraControl;
 using AlphaTown.UI.Selection;
 using UnityEngine;
@@ -17,10 +19,14 @@ namespace AlphaTown.UI.Interaction
     /// result fixes that by construction: a press resolves to exactly one gesture and stays there
     /// until the finger lifts.
     ///
-    /// Which gesture a drag becomes is decided by where it started. Beginning on a crop that is
-    /// ready to cut means you meant to harvest; beginning anywhere else means you meant to move
-    /// the map. That needs no mode switch and no tool button, and it never leaves the camera stuck
-    /// behind a tool the player forgot they had selected.
+    /// One finger drags the map, unless the sickle is in hand — then one finger swings it. Two
+    /// fingers always drive the camera, so the map can still be moved and zoomed with the tool
+    /// out and there is no way to get stranded in the mode.
+    ///
+    /// This replaced an earlier rule that inferred the sickle from a drag beginning on a ripe
+    /// crop. It worked, but a gesture nobody told you about is a gesture that reads as broken when
+    /// it does not fire, and it quietly stole panning from every tile that happened to be ready.
+    /// An armed tool you can see is worth the extra tap.
     /// </summary>
     [RequireComponent(typeof(TownSelection))]
     public sealed class TownGestures : MonoBehaviour
@@ -45,6 +51,7 @@ namespace AlphaTown.UI.Interaction
         [SerializeField] IsoCameraController _cameraController;
         [SerializeField] UIDocument _hudDocument;
         [SerializeField] SickleSwipeHarvestController _sickle;
+        [SerializeField] TownTool _tool;
 
         [Header("Feel")]
         [SerializeField, Min(1f)]
@@ -55,6 +62,8 @@ namespace AlphaTown.UI.Interaction
         [Tooltip("Seconds a press may last and still count as a tap.")]
         float _tapMaxSeconds = 0.7f;
 
+        readonly List<BuildingInstance> _harvestable = new List<BuildingInstance>(32);
+
         TownSelection _selection;
         Gesture _gesture = Gesture.Idle;
         Vector2 _pressPosition;
@@ -63,7 +72,7 @@ namespace AlphaTown.UI.Interaction
         int _pointerId;
         int _previousCount;
         float _previousPinchDistance;
-        bool _startedOnRipeCrop;
+        Vector2 _previousPinchCentre;
 
         void Awake()
         {
@@ -73,6 +82,7 @@ namespace AlphaTown.UI.Interaction
             if (_cameraController == null && _camera != null)
                 _cameraController = _camera.GetComponent<IsoCameraController>();
             if (_sickle == null) _sickle = FindAnyObjectByType<SickleSwipeHarvestController>();
+            if (_tool == null) _tool = FindAnyObjectByType<TownTool>();
 
             // Without a document to hit-test, every tap on the HUD would also land on the tile
             // behind it, so it is worth finding one rather than silently going without.
@@ -116,11 +126,9 @@ namespace AlphaTown.UI.Interaction
                 case Gesture.Undecided:
                     if ((position - _pressPosition).sqrMagnitude < _tapSlopPixels * _tapSlopPixels) return;
 
-                    // Far enough to be a drag. What it started on decides which drag it is.
-                    _gesture = _startedOnRipeCrop ? Gesture.Harvest : Gesture.Pan;
-                    if (_gesture == Gesture.Pan) _cameraController?.BeginPan();
-                    else _sickle?.BeginSwipe(ScreenToWorld(_pressPosition));
-
+                    // Far enough to be a drag, and with no tool in hand that always means the map.
+                    _gesture = Gesture.Pan;
+                    _cameraController?.BeginPan();
                     _lastPosition = _pressPosition;
                     break;
             }
@@ -145,8 +153,17 @@ namespace AlphaTown.UI.Interaction
                 return;
             }
 
+            if (_sickle != null && _sickle.IsArmed)
+            {
+                // The blade starts cutting the moment it lands, so a single tap with the sickle
+                // out takes that one crop. Waiting for movement would make the first tile of every
+                // sweep the one tile it missed.
+                _gesture = Gesture.Harvest;
+                _sickle.BeginSwipe(ScreenToWorld(position));
+                return;
+            }
+
             _gesture = Gesture.Undecided;
-            _startedOnRipeCrop = IsHarvestable(CellUnder(position));
         }
 
         void EndPress()
@@ -158,7 +175,8 @@ namespace AlphaTown.UI.Interaction
                     break;
 
                 case Gesture.Harvest:
-                    _sickle?.EndSwipe();
+                    if (_sickle != null) _sickle.EndSwipe();
+                    DisarmIfNothingLeftToCut();
                     break;
 
                 case Gesture.Undecided:
@@ -174,12 +192,19 @@ namespace AlphaTown.UI.Interaction
 
         // --- Two fingers --------------------------------------------------------------------
 
+        /// <summary>
+        /// Two fingers zoom by their separation and pan by their midpoint, both at once.
+        ///
+        /// Panning here is what makes an armed tool safe: the map is still fully navigable with
+        /// the sickle out, so picking it up can never strand the player looking at the wrong
+        /// corner of their town.
+        /// </summary>
         void UpdatePinch()
         {
-            // A pinch cancels whatever the first finger was doing. Panning and zooming at once
-            // reads as the map fighting the player.
+            // A second finger cancels whatever the first was doing. Cutting while the map moves
+            // under the blade would harvest wherever the camera happened to slide.
             if (_gesture == Gesture.Pan) _cameraController?.EndPan();
-            else if (_gesture == Gesture.Harvest) _sickle?.EndSwipe();
+            else if (_gesture == Gesture.Harvest && _sickle != null) _sickle.EndSwipe();
 
             _gesture = Gesture.Pinch;
 
@@ -187,17 +212,23 @@ namespace AlphaTown.UI.Interaction
             if (!PointerInput.TryGet(1, out _, out var second)) return;
 
             var distance = Vector2.Distance(first, second);
+            var centre = (first + second) * 0.5f;
 
-            // The first frame of a pinch has no previous distance to compare against, so it only
-            // records one. Zooming from a zero baseline would snap the camera to its limit.
+            // The first frame of a pinch has nothing to compare against, so it only records a
+            // baseline. Measuring against zero would snap the camera to its zoom limit.
             if (_previousCount < 2 || _previousPinchDistance <= 0f)
             {
                 _previousPinchDistance = distance;
+                _previousPinchCentre = centre;
                 return;
             }
 
             _cameraController?.ZoomByPinch(distance - _previousPinchDistance);
+            _cameraController?.PanByScreenDelta(centre - _previousPinchCentre, Time.unscaledDeltaTime);
+            _cameraController?.EndPan();
+
             _previousPinchDistance = distance;
+            _previousPinchCentre = centre;
         }
 
         void HandleScroll()
@@ -222,12 +253,18 @@ namespace AlphaTown.UI.Interaction
             _selection.Select(cell, grid.TryGetOccupant(cell, out var occupant) ? occupant : string.Empty);
         }
 
-        bool IsHarvestable(GridPosition cell)
+        /// <summary>
+        /// Puts the sickle away once the last ripe crop is gone.
+        ///
+        /// A tool that outlives its purpose is a mode the player has to remember to leave, and the
+        /// first thing they will try after clearing the fields is to drag the map.
+        /// </summary>
+        void DisarmIfNothingLeftToCut()
         {
-            var world = _runner.World;
-            if (!world.Buildings.Grid.TryGetOccupant(cell, out var instanceId)) return false;
+            if (_tool == null || !_tool.IsSickleArmed) return;
 
-            return world.TryGetProducer(instanceId, out var producer) && producer.HasReadyGoods;
+            _runner.Commands.CollectHarvestable(_harvestable);
+            if (_harvestable.Count == 0) _tool.Clear();
         }
 
         GridPosition CellUnder(Vector2 screenPosition) => IsoGridMath.WorldToGrid(ScreenToWorld(screenPosition));

@@ -32,6 +32,7 @@ namespace AlphaTown.UI.Hud
 
         [SerializeField] GameRunner _runner;
         [SerializeField] TownSelection _selection;
+        [SerializeField] TownTool _tool;
 
         [SerializeField, Min(0.05f)]
         [Tooltip("Seconds between refreshes. Timers are timestamp-derived, so this only sets how " +
@@ -50,6 +51,8 @@ namespace AlphaTown.UI.Hud
         BuildMenu _buildMenu;
 
         VisualElement _overlay;
+        VisualElement _toolBanner;
+        Label _toolBannerText;
         Label _toast;
         Overlay _screen;
         float _secondsSinceRefresh;
@@ -62,16 +65,19 @@ namespace AlphaTown.UI.Hud
         {
             if (_runner == null) _runner = FindAnyObjectByType<GameRunner>();
             if (_selection == null) _selection = FindAnyObjectByType<TownSelection>();
+            if (_tool == null) _tool = FindAnyObjectByType<TownTool>();
         }
 
         void OnEnable()
         {
             if (_selection != null) _selection.Changed += OnSelectionChanged;
+            if (_tool != null) _tool.Changed += OnToolChanged;
         }
 
         void OnDisable()
         {
             if (_selection != null) _selection.Changed -= OnSelectionChanged;
+            if (_tool != null) _tool.Changed -= OnToolChanged;
         }
 
         void Start()
@@ -84,6 +90,7 @@ namespace AlphaTown.UI.Hud
             }
 
             Build(GetComponent<UIDocument>().rootVisualElement);
+            OnToolChanged();
             Refresh();
         }
 
@@ -118,6 +125,8 @@ namespace AlphaTown.UI.Hud
             _overlay.style.marginBottom = 12f;
             root.Add(_overlay);
 
+            root.Add(BuildToolBanner());
+
             _toast = UiKit.Text("", 24, true);
             _toast.style.backgroundColor = new Color(0f, 0f, 0f, 0.75f);
             _toast.style.paddingLeft = 18f;
@@ -133,7 +142,8 @@ namespace AlphaTown.UI.Hud
             _barnPanel = new BarnPanel(database);
             _orderPanel = new OrderPanel(commands, database, clock, Report);
             _buildMenu = new BuildMenu(commands, database, Report);
-            _contextPanel = new ContextPanel(commands, database, clock, Report, () => Open(Overlay.Build));
+            _contextPanel = new ContextPanel(
+                commands, database, clock, Report, () => Open(Overlay.Build), ArmSickle);
 
             _toast.pickingMode = PickingMode.Ignore;
             _overlay.pickingMode = PickingMode.Ignore;
@@ -187,6 +197,60 @@ namespace AlphaTown.UI.Hud
                     if (_selection != null && _selection.HasCell) _buildMenu.Refresh(_selection.Cell);
                     break;
             }
+        }
+
+        /// <summary>
+        /// Picks the sickle up and gets out of the way. An open panel would cover the fields the
+        /// player is about to sweep, which is the one thing the tool needs them to be able to see.
+        /// </summary>
+        void ArmSickle()
+        {
+            if (_tool == null)
+            {
+                Report(CommandResult.Fail("No sickle available."));
+                return;
+            }
+
+            Open(Overlay.None);
+            _tool.Select(TownToolKind.Sickle);
+        }
+
+        void OnToolChanged()
+        {
+            // Subscribed in OnEnable, which runs before the HUD is built.
+            if (_toolBanner == null) return;
+
+            var armed = _tool != null && _tool.IsSickleArmed;
+            _toolBanner.style.display = armed ? DisplayStyle.Flex : DisplayStyle.None;
+
+            if (armed) _toolBannerText.text = "Sickle in hand — sweep across your crops";
+            Refresh();
+        }
+
+        /// <summary>
+        /// The one thing on screen that says a mode is active, and the way out of it.
+        ///
+        /// Two fingers still pan and zoom while it is up, so the map stays reachable; the banner
+        /// says what to do and the button puts the tool down without needing to find a crop first.
+        /// </summary>
+        VisualElement BuildToolBanner()
+        {
+            var banner = UiKit.Card(10f);
+            banner.style.flexDirection = FlexDirection.Row;
+            banner.style.alignItems = Align.Center;
+            banner.style.justifyContent = Justify.SpaceBetween;
+            banner.style.alignSelf = Align.Center;
+            banner.style.marginBottom = 10f;
+            banner.style.backgroundColor = new Color(0.16f, 0.30f, 0.16f, 0.94f);
+            banner.style.display = DisplayStyle.None;
+
+            _toolBannerText = UiKit.Text("", 24, true);
+            _toolBannerText.style.marginRight = 16f;
+            banner.Add(_toolBannerText);
+            banner.Add(UiKit.Action("Done", () => _tool?.Clear()));
+
+            _toolBanner = banner;
+            return banner;
         }
 
         void OnSelectionChanged()

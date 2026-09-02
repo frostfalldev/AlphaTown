@@ -159,29 +159,5 @@ namespace AlphaTown.UI.Hud
                 else child.style.marginBottom = i == container.childCount - 1 ? 0f : gap;
             }
         }
-
-        /// <summary>
-        /// A 1x1 white sprite, so the town is visible before there is any art.
-        ///
-        /// Tinted per building rather than textured: placeholder squares that differ by colour are
-        /// enough to tell a field from a bakery while the loop is what is being tested.
-        /// </summary>
-        public static Sprite CreateSolidSprite()
-        {
-            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
-            {
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp,
-                hideFlags = HideFlags.HideAndDontSave
-            };
-
-            texture.SetPixel(0, 0, Color.white);
-            texture.Apply();
-
-            var sprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
-            sprite.hideFlags = HideFlags.HideAndDontSave;
-            sprite.name = "AlphaTown Placeholder";
-            return sprite;
-        }
     }
 }

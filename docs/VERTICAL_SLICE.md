@@ -54,15 +54,31 @@ HUD                 UIDocument + TownHud                          resource bar, 
 
 | Action | How |
 | --- | --- |
-| Look around | Drag anywhere that is not a ripe crop; pinch or scroll to zoom |
+| Look around | Drag with one finger; pinch or scroll to zoom |
 | Inspect anything | Tap it — the context panel names it and offers what it can do |
 | Plant a field | Tap an empty field ▸ **Plant** |
 | Harvest one field | Tap a ripe field ▸ **Harvest** |
-| Harvest many fields | **Start** the drag on a ripe crop, then sweep across the rest |
+| Harvest many fields | Tap a ripe field ▸ **Sickle (n)**, then sweep across the plots |
 
-> Where a drag begins decides what it does: starting on a crop that is ready swings the sickle,
-> starting anywhere else moves the map. One finger cannot do both, which is what it used to try.
-> Two fingers always zoom.
+### The sickle
+
+Harvesting in bulk is a tool you pick up, not a gesture you have to know about.
+
+1. Tap a field that is ready. The context panel offers **Sickle (n)** — *n* is how many fields are
+   waiting, which is the whole argument for picking it up.
+2. Tap it. Any open panel closes, a green banner appears, and the blade drops into your hand over
+   the field you selected.
+3. Sweep. Every ripe plot the blade crosses is cut, each at most once per sweep, and the path
+   *between* frames is walked so a fast flick does not skip the middle of a row. A single tap cuts
+   just that plot.
+4. It puts itself away when the last crop is gone, or you tap **Done**.
+
+While the sickle is out, one finger always swings it — **two fingers pan and zoom**, so the map
+stays fully navigable and there is no way to get stranded in the mode.
+
+> This replaced an earlier rule where a drag that *began* on a ripe crop became a swipe. It worked,
+> but a gesture nobody tells you about reads as broken when it does not fire, and it quietly stole
+> panning from every tile that happened to be ready.
 | Build | Tap empty land ▸ **Build**, or the **Build** button |
 | Upgrade | Tap a building ▸ **Upgrade** (shows its cost, greys out when unaffordable) |
 | Deliver an order | **Orders** ▸ **Deliver** |

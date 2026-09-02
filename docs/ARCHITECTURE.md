@@ -398,16 +398,28 @@ harvested every crop it crossed.
 
 A press now resolves to exactly one gesture and stays there until the finger lifts:
 
-| Started on | Moved past the slop? | Becomes |
-| --- | --- | --- |
-| A HUD widget | — | Nothing; the UI has it |
-| A crop that is ready | yes | Sickle swipe |
-| Anything else | yes | Camera pan |
-| Anywhere | no | Tap — select |
-| (two fingers) | — | Pinch zoom, cancelling whatever the first finger was doing |
+| Fingers | Sickle armed? | Started on | Becomes |
+| --- | --- | --- | --- |
+| one | — | a HUD widget | Nothing; the UI has it |
+| one | yes | anywhere else | Sickle swipe, cutting from the moment it lands |
+| one | no | anywhere else | Drag → camera pan; no movement → tap, select |
+| two | — | — | Pinch zoom **and** pan, cancelling whatever the first finger was doing |
 
-Where the drag *began* decides, which needs no mode switch and no tool button, and can never leave
-the camera stuck behind a tool the player forgot was selected.
+#### Tools are modes, and modes must be visible
+
+`TownTool` holds what the player is carrying. It is separate from `TownSelection` because they
+answer different questions — what is selected, versus what happens when you drag — and because
+arming a tool must not clear the selection that armed it.
+
+An earlier version inferred the sickle from a drag that *began* on a ripe crop. No mode, no extra
+tap. It was worse: a gesture nobody tells you about reads as broken when it does not fire, there is
+nothing on screen to explain why, and it quietly stole panning from every tile that happened to be
+ready.
+
+A mode earns its cost when it is impossible to enter by accident and obvious once you are in it.
+Arming the sickle takes two deliberate taps, puts a banner on screen and a blade in the player's
+hand, keeps two-finger pan and zoom live so nobody gets stranded, and disarms itself when there is
+nothing left to cut.
 
 `IsoCameraController` no longer reads input at all — it takes `BeginPan`/`PanByScreenDelta`/
 `EndPan`/`ZoomByPinch` and keeps its damping, inertia and bounds clamping. That also means the

@@ -4,7 +4,6 @@ using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Presentation;
 using AlphaTown.Gameplay.Bootstrap;
 using AlphaTown.Gameplay.Buildings;
-using AlphaTown.UI.Hud;
 using AlphaTown.UI.Selection;
 using UnityEngine;
 
@@ -47,7 +46,7 @@ namespace AlphaTown.UI.View
             if (_runner == null) _runner = FindAnyObjectByType<GameRunner>();
             if (_selection == null) _selection = FindAnyObjectByType<TownSelection>();
 
-            _placeholder = _placeholderSprite != null ? _placeholderSprite : UiKit.CreateSolidSprite();
+            _placeholder = _placeholderSprite != null ? _placeholderSprite : PlaceholderArt.Solid();
 
             _groundRoot = new GameObject("Ground").transform;
             _groundRoot.SetParent(transform, false);

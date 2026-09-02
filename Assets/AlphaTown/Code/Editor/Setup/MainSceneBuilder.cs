@@ -73,9 +73,10 @@ namespace AlphaTown.EditorTools.Setup
             // to both, because it hit-tests the HUD before letting a touch reach the town.
             var input = new GameObject("Input");
             var selection = input.AddComponent<TownSelection>();
+            var tool = input.AddComponent<TownTool>();
 
-            var hud = CreateHud(runner, selection);
-            CreateGestureInput(input, runner, camera, cameraController, hud);
+            var hud = CreateHud(runner, selection, tool);
+            CreateGestureInput(input, runner, camera, cameraController, hud, selection, tool);
             CreateTownView(runner, selection);
 
             AssetAuthoring.EnsureFolder(Path.GetDirectoryName(ScenePath)?.Replace('\\', '/'));
@@ -144,11 +145,14 @@ namespace AlphaTown.EditorTools.Setup
         /// everything it crossed at once.
         /// </summary>
         static void CreateGestureInput(GameObject input, GameRunner runner, Camera camera,
-                                       IsoCameraController cameraController, TownHud hud)
+                                       IsoCameraController cameraController, TownHud hud,
+                                       TownSelection selection, TownTool tool)
         {
             var sickle = input.AddComponent<SickleSwipeHarvestController>();
             var sickleSerialized = AssetAuthoring.Edit(sickle);
             AssetAuthoring.SetReference(sickleSerialized, "_runner", runner);
+            AssetAuthoring.SetReference(sickleSerialized, "_tool", tool);
+            AssetAuthoring.SetReference(sickleSerialized, "_selection", selection);
             AssetAuthoring.Apply(sickleSerialized);
 
             var gestures = input.AddComponent<TownGestures>();
@@ -158,6 +162,7 @@ namespace AlphaTown.EditorTools.Setup
             AssetAuthoring.SetReference(serialized, "_cameraController", cameraController);
             AssetAuthoring.SetReference(serialized, "_hudDocument", hud.GetComponent<UIDocument>());
             AssetAuthoring.SetReference(serialized, "_sickle", sickle);
+            AssetAuthoring.SetReference(serialized, "_tool", tool);
             AssetAuthoring.Apply(serialized);
         }
 
@@ -172,7 +177,7 @@ namespace AlphaTown.EditorTools.Setup
             AssetAuthoring.Apply(serialized);
         }
 
-        static TownHud CreateHud(GameRunner runner, TownSelection selection)
+        static TownHud CreateHud(GameRunner runner, TownSelection selection, TownTool tool)
         {
             var go = new GameObject("HUD");
 
@@ -183,6 +188,7 @@ namespace AlphaTown.EditorTools.Setup
             var serialized = AssetAuthoring.Edit(hud);
             AssetAuthoring.SetReference(serialized, "_runner", runner);
             AssetAuthoring.SetReference(serialized, "_selection", selection);
+            AssetAuthoring.SetReference(serialized, "_tool", tool);
 
             // Land deeds earn a slot on the top bar next to the currencies. Named explicitly
             // rather than left to the Special-category fallback so the bar's contents are visible

@@ -135,6 +135,46 @@ namespace AlphaTown.Gameplay.Buildings
         }
 
         /// <summary>
+        /// Places a building outright: no cost, no unlock check, construction already finished.
+        ///
+        /// This is how a new town is seeded and how a reward or a debug command hands the player a
+        /// building. It still goes through the grid, so a starting layout that overlaps or falls
+        /// outside the unlocked area fails here rather than corrupting the town — the content is
+        /// wrong, and it should be obvious in the Editor rather than at the player's expense.
+        ///
+        /// Nothing is charged, so nothing reaches the ledger. That is deliberate: a granted
+        /// building is not a purchase, and recording it as one would make the coin sink numbers
+        /// lie about what players actually spend.
+        /// </summary>
+        public BuildingActionResult GrantBuilding(string definitionId, GridPosition origin, out string instanceId)
+        {
+            instanceId = null;
+
+            if (!_database.TryGetBuilding(definitionId, out var definition))
+                return BuildingActionResult.UnknownDefinition;
+
+            var rect = new GridRect(origin, definition.Footprint);
+            var placement = Map(_grid.Validate(rect));
+            if (placement != BuildingActionResult.Success) return placement;
+
+            instanceId = "building_" + _nextInstanceNumber++;
+
+            var building = new BuildingInstance(instanceId, definition, origin);
+            _grid.Occupy(rect, instanceId);
+            _buildings.Add(building);
+            _byId.Add(instanceId, building);
+
+            // Begin and complete in the same breath: a starting building is standing on day one,
+            // not under scaffolding while the player waits out a timer they never chose.
+            var now = _clock.UtcNowTicks;
+            building.BeginConstruction(1, now, now);
+            _events.Publish(new BuildingPlacedEvent(instanceId, definition.Id, origin));
+
+            Sync();
+            return BuildingActionResult.Success;
+        }
+
+        /// <summary>
         /// Improves a building: the next level within its definition, or — once it is at its last
         /// level and has somewhere to go — the definition it upgrades into. Sink is
         /// <see cref="CurrencySink.BuildingUpgrade"/> either way.

@@ -7,8 +7,8 @@ Unity 6.3 LTS · Universal Render Pipeline · Android primary, iOS secondary
 
 ## Current state
 
-Project scaffolding and core architecture. No gameplay UI, no content, no scenes yet — the
-foundations the rest gets built on.
+A playable vertical slice: one scene where you plant, harvest, deliver, earn, build and unlock
+land, on the same headless simulation the tests exercise.
 
 - `Assets/` structure and eight layered assemblies
 - Core systems: game clock, event bus, inventory, production chains, save/load
@@ -18,7 +18,8 @@ foundations the rest gets built on.
 - Order board pacing: per-slot cooldowns throttling the main coin faucet
 - Expansion: land bought with deeds earned from orders, not coins
 - Server-verified time with retry and offline fallback, so timers survive a player editing their clock
-- Editor tooling that applies player settings, quality levels and a mobile URP profile
+- A playable scene: isometric camera, tap to inspect, swipe-to-harvest, and a minimal HUD
+- Editor tooling that generates the project settings, the sample content **and the scene itself**
 - EditMode tests covering the simulation, with no scene required
 
 **The Unity project has not been created yet.** `Packages/` and `ProjectSettings/` are not in the
@@ -33,13 +34,16 @@ git clone <repo> AlphaTown
 ```
 
 Then follow [docs/SETUP.md](docs/SETUP.md) to create the Unity project and merge it in. Once it
-opens, run **AlphaTown ▸ Setup ▸ Apply All Project Settings**.
+opens, run **AlphaTown ▸ Setup ▸ Build Playable Project** — that applies the project settings,
+generates the sample content and builds `Assets/AlphaTown/Scenes/Town.unity`. Open it and press
+Play. See [docs/VERTICAL_SLICE.md](docs/VERTICAL_SLICE.md).
 
 ## Documentation
 
 | | |
 | --- | --- |
 | [docs/SETUP.md](docs/SETUP.md) | Creating the project, first-open checklist, repo layout, LFS |
+| [docs/VERTICAL_SLICE.md](docs/VERTICAL_SLICE.md) | Building and playing the slice, and where the loop is thin |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Assembly layers and the core systems |
 | [docs/ECONOMY.md](docs/ECONOMY.md) | The economic loop, reason codes and the tuning levers |
 | [docs/BUILDINGS_AND_GRID.md](docs/BUILDINGS_AND_GRID.md) | Placement, construction and upgrade design |

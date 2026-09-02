@@ -20,5 +20,15 @@ namespace AlphaTown.Data.Recipes
 
         /// <summary>Town level the player must reach before this recipe is offered.</summary>
         int UnlockLevel { get; }
+
+        /// <summary>
+        /// Extra units of the first output that a run may yield, on top of the authored count.
+        /// Zero — the default — means the recipe always produces exactly what it says.
+        ///
+        /// The roll is a hash of the completed order, not a random draw, so a harvest that
+        /// finished while the game was closed yields the same amount it would have while the
+        /// player watched. See <c>AlphaTown.Core.Randomness.DeterministicRoll</c>.
+        /// </summary>
+        int BonusOutputMax { get; }
     }
 }

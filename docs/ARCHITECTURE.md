@@ -29,14 +29,17 @@ anything else.
 
 ```
         ┌──────────────────────────────────────────────┐
-        │ AlphaTown.UI            screens, HUD          │   (empty — no gameplay UI yet)
+        │ AlphaTown.UI            screens, HUD, views   │
+        │   IsoCameraController · TownView              │
+        │   TownTapInput · SickleSwipeHarvestController │
+        │   TownHud and its panels                      │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Gameplay      the simulation        │
         │   BarnInventory · Producer · Wallet           │
         │   TownProgression · OrderBoard                │
         │   TownGrid · TownBuildings · TownExpansion    │
-        │   GameWorld                                   │
+        │   GameWorld · TownCommands                    │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Services      clock, save, remote   │
@@ -48,12 +51,14 @@ anything else.
         │   CurrencyDefinition · ProgressionCurve       │
         │   OrderTemplateDefinition · BuildingDefinition│
         │   TownDefinition · ExpansionDefinition        │
+        │   NewGameDefinition · presentation interfaces │
         │   reason-code enums                           │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Core          no dependencies       │
         │   EventBus · IGameClock · Guard · Log         │
         │   GridPosition · GridSize · GridRect          │
+        │   IsoGridMath · DeterministicRoll             │
         └──────────────────────────────────────────────┘
 
 AlphaTown.Editor          Editor only, references all of the above
@@ -286,6 +291,74 @@ Android can kill a backgrounded app without ever calling `OnApplicationQuit`.
 > local-first and reconciles on login **with an explicit conflict policy** — silently taking the
 > newer timestamp loses progress.
 
+### Presentation data — `AlphaTown.Data.Presentation`
+
+Art hangs off definitions through a **second interface**, never the simulation one.
+`ItemDefinition` implements both `IItemDefinition` and `IItemVisuals`; `RecipeDefinition` adds
+`IRecipeVisuals` (icon plus growth-stage frames); `BuildingDefinition` adds `IBuildingVisuals`
+(icon, map sprite, placeholder tint). A view asks for the second one:
+
+```csharp
+if (definition is IRecipeVisuals visuals) renderer.sprite = visuals.StageFor(progress);
+```
+
+Two things fall out. The simulation interfaces stay free of `UnityEngine` types, so a test can
+fake them with a plain object. And nothing in Gameplay *can* branch on a sprite, because Gameplay
+never sees one.
+
+Growth frames are presentation only. The simulation knows a start timestamp and a duration; which
+picture that maps to is a question the view asks per frame. Adding art frames re-times the
+animation and changes nothing about when the crop is ready.
+
+### Variable yield — `AlphaTown.Core.Randomness`
+
+`IRecipeDefinition.BonusOutputMax` lets a recipe yield more than it promises. Making that safe in a
+timestamp-driven simulation needs one rule: **the roll is a hash of the completed order, not a draw
+from a stream.**
+
+```csharp
+var seed = DeterministicRoll.Seed(InstanceId + "|" + recipe.Id, order.CompletesAtTicks);
+var bonus = DeterministicRoll.Range(seed, 0, recipe.BonusOutputMax);
+```
+
+The answer is therefore fixed the moment the order starts. A harvest resolved on resume after a
+week away yields what it would have yielded had someone watched it finish, and re-syncing the same
+save twice cannot produce two answers. Including the instance id stops a row of fields planted in
+one tap from all rolling identically.
+
+Deliberately not `UnityEngine.Random`: that is global mutable state shared with every effect in the
+project, so the sequence the simulation saw would depend on what the renderer did that frame.
+
+### Commands — `AlphaTown.Gameplay.Commands`
+
+`TownCommands` is everything the player can ask the town to do, phrased the way a screen asks it:
+plant this field, harvest what is ready, build here, deliver that order. It is the only thing the
+UI talks to.
+
+A view holds a `TownCommands` and a read-only look at `GameWorld`. It does not know that planting
+is really "enqueue a recipe on the producer attached to a Farming-category building", and it cannot
+reach a state the simulation would refuse — every rule is still enforced underneath.
+
+It is also where *why not?* is answered. The systems below return enums built for code;
+`CommandResult` carries a sentence a player can read. Doing that translation here keeps it testable
+and out of the MonoBehaviours.
+
+> The messages are plain English rather than localisation keys — a deliberate limit of the slice,
+> flagged with a `TODO(localisation)` where it lives.
+
+### Presentation — `AlphaTown.UI`
+
+Four pieces, none of which the simulation knows about:
+
+- **`IsoCameraController`** — pan, pinch-zoom and clamping over the diamond projection in
+  `IsoGridMath`.
+- **`TownView`** — reconciles sprites against the building list every frame rather than listening
+  for events. A view that is wrong is wrong for one frame, not until the next reload.
+- **`TownTapInput` / `SickleSwipeHarvestController`** — screen to world to cell is arithmetic, so a
+  town of a thousand tiles needs no colliders and no raycasts. A tap selects; a drag harvests.
+- **`TownHud`** — UI Toolkit, built in C# with inline styles. No UXML or USS while the layout is
+  still moving: one file to change, and no asset GUIDs to go missing.
+
 ### Composition — `AlphaTown.Gameplay.Bootstrap`
 
 `GameRunner` is the only MonoBehaviour in the simulation. It builds the services, owns the
@@ -296,6 +369,18 @@ object graph stands up in an EditMode test.
 its own dependencies from it cannot be tested without standing up the whole game. Systems take
 what they need through their constructors.
 
+`GameRunner.RequestSave()` is the save point for player actions: debounced two seconds, because a
+sickle swipe harvests a dozen fields in a second and serialising the whole town a dozen times would
+show up as a stutter under the player's finger. `SaveGame()` stays immediate for pause and quit.
+
+A new player is seeded from `INewGameDefinition` — barn level, starting goods and buildings that
+are already standing. Those go through `TownBuildings.GrantBuilding`, which skips cost and unlock
+checks but still validates against the grid, and deliberately touches neither wallet nor ledger: a
+granted building is not a purchase, and recording it as one would make the coin-sink numbers lie.
+
+The scene itself is **generated** by `MainSceneBuilder` rather than committed. See
+[VERTICAL_SLICE.md](VERTICAL_SLICE.md).
+
 ## Testing
 
 `Assets/AlphaTown/Tests/EditMode` covers the barn's capacity and atomicity rules, the production
@@ -304,7 +389,9 @@ wallet atomicity and ledger reconciliation, XP cascading and cap behaviour, orde
 expiry, order slot pacing and its persistence, the farming loop including the offline auto-replant
 bound, grid placement rules, building construction and both upgrade paths, land purchase with its
 prerequisite chain and restore ordering, clock synchronisation with its offline and tamper paths,
-a save round trip through the real serializer, and the full economic loop end to end.
+a save round trip through the real serializer, the command layer the UI drives, deterministic
+variable yields matching between offline and watched play, new-game seeding, and the full economic
+loop end to end.
 
 `TestContent` is tuned so exactly one item is producible at town level 1, which makes generated
 orders deterministic without depending on an RNG seed. Randomness is injected into `GameWorld`

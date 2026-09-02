@@ -49,13 +49,14 @@ namespace AlphaTown.Tests.EditMode
     internal sealed class FakeRecipe : IRecipeDefinition
     {
         public FakeRecipe(string id, TimeSpan duration, ItemStack[] inputs, ItemStack[] outputs,
-                          int unlockLevel = 1)
+                          int unlockLevel = 1, int bonusOutputMax = 0)
         {
             Id = id;
             Duration = duration;
             Inputs = inputs ?? Array.Empty<ItemStack>();
             Outputs = outputs ?? Array.Empty<ItemStack>();
             UnlockLevel = unlockLevel;
+            BonusOutputMax = bonusOutputMax;
         }
 
         public string Id { get; }
@@ -63,6 +64,7 @@ namespace AlphaTown.Tests.EditMode
         public IReadOnlyList<ItemStack> Outputs { get; }
         public TimeSpan Duration { get; }
         public int UnlockLevel { get; }
+        public int BonusOutputMax { get; }
     }
 
     internal sealed class FakeProducerLevel : IProducerLevel
@@ -345,6 +347,23 @@ namespace AlphaTown.Tests.EditMode
             Removed.Add(instanceId);
             return true;
         }
+    }
+
+    internal sealed class FakeNewGameDefinition : INewGameDefinition
+    {
+        public FakeNewGameDefinition(int startingBarnLevel = 1, ItemStack[] items = null,
+                                     StartingBuilding[] buildings = null)
+        {
+            Id = "new_game";
+            StartingBarnLevel = startingBarnLevel;
+            StartingItems = items ?? Array.Empty<ItemStack>();
+            StartingBuildings = buildings ?? Array.Empty<StartingBuilding>();
+        }
+
+        public string Id { get; }
+        public int StartingBarnLevel { get; }
+        public IReadOnlyList<ItemStack> StartingItems { get; }
+        public IReadOnlyList<StartingBuilding> StartingBuildings { get; }
     }
 
     internal sealed class FakeDatabase : IGameDatabase

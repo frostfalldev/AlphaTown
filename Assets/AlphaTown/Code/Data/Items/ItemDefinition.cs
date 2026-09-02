@@ -1,10 +1,11 @@
 using AlphaTown.Data.Definitions;
+using AlphaTown.Data.Presentation;
 using UnityEngine;
 
 namespace AlphaTown.Data.Items
 {
     [CreateAssetMenu(menuName = "AlphaTown/Items/Item Definition", fileName = "Item_", order = 0)]
-    public sealed class ItemDefinition : GameDefinition, IItemDefinition
+    public sealed class ItemDefinition : GameDefinition, IItemDefinition, IItemVisuals
     {
         [SerializeField] string _displayNameKey;
         [SerializeField] ItemCategory _category = ItemCategory.Crop;

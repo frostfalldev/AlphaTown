@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using AlphaTown.Core.Diagnostics;
 using AlphaTown.Core.Events;
+using AlphaTown.Core.Randomness;
 using AlphaTown.Core.Timing;
 using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Production;
+using AlphaTown.Data.Recipes;
 using AlphaTown.Gameplay.Inventory;
 using AlphaTown.Gameplay.Progression;
 
@@ -71,6 +73,30 @@ namespace AlphaTown.Gameplay.Production
         public bool IsIdle => _orders.Count == 0 && _ready.Count == 0;
 
         public bool HasReadyGoods => _ready.Count > 0;
+
+        /// <summary>
+        /// The order the view should draw: the one finishing first. False when nothing is running,
+        /// which for a field means bare soil.
+        /// </summary>
+        public bool TryGetActiveOrder(out ProductionOrder order)
+        {
+            var best = -1;
+            var bestTicks = long.MaxValue;
+
+            for (var i = 0; i < _orders.Count; i++)
+            {
+                if (!_orders[i].IsStarted || _orders[i].CompletesAtTicks >= bestTicks) continue;
+
+                best = i;
+                bestTicks = _orders[i].CompletesAtTicks;
+            }
+
+            order = best < 0 ? default : _orders[best];
+            return best >= 0;
+        }
+
+        /// <summary>0..1 through the active order, for growth frames and progress bars.</summary>
+        public float Progress01 => TryGetActiveOrder(out var order) ? order.Progress01(_clock.UtcNowTicks) : 0f;
 
         public int QueueCapacity => _definition.GetLevel(_level).QueueCapacity;
         public bool HasFreeQueueSlot => _orders.Count < QueueCapacity;
@@ -338,7 +364,10 @@ namespace AlphaTown.Gameplay.Production
             if (_database.TryGetRecipe(order.RecipeId, out var recipe))
             {
                 var outputs = recipe.Outputs;
-                for (var i = 0; i < outputs.Count; i++) AddReady(outputs[i]);
+                for (var i = 0; i < outputs.Count; i++)
+                {
+                    AddReady(i == 0 ? WithBonusYield(outputs[i], recipe, order) : outputs[i]);
+                }
             }
             else
             {
@@ -347,6 +376,25 @@ namespace AlphaTown.Gameplay.Production
             }
 
             _events.Publish(new ProductionOrderCompletedEvent(InstanceId, order.RecipeId));
+        }
+
+        /// <summary>
+        /// Applies a recipe's variable yield to its headline output.
+        ///
+        /// The roll is keyed on the completed order rather than drawn from a stream, so it is
+        /// fixed the moment the order starts. A field harvested on resume after a week away gives
+        /// the number it would have given had someone been watching it finish, and re-syncing the
+        /// same save twice cannot produce two different answers.
+        /// </summary>
+        ItemStack WithBonusYield(ItemStack stack, IRecipeDefinition recipe, ProductionOrder order)
+        {
+            if (recipe.BonusOutputMax <= 0) return stack;
+
+            // Keyed on this building as well as the order, so a row of fields planted in the same
+            // tap do not all come up with the same number.
+            var seed = DeterministicRoll.Seed(InstanceId + "|" + recipe.Id, order.CompletesAtTicks);
+            var bonus = DeterministicRoll.Range(seed, 0, recipe.BonusOutputMax);
+            return bonus > 0 ? stack.WithCount(stack.Count + bonus) : stack;
         }
 
         void AddReady(ItemStack stack)

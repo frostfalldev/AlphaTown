@@ -52,6 +52,10 @@ namespace AlphaTown.Data.Catalog
         [SerializeField] ProgressionCurve _progressionCurve;
 
         [SerializeField]
+        [Tooltip("Optional. What a brand-new player starts with. Empty starts an empty town.")]
+        NewGameDefinition _newGame;
+
+        [SerializeField]
         [Tooltip("Optional. Town bounds; the world falls back to defaults when this is empty.")]
         TownDefinition _townDefinition;
 

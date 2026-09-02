@@ -1,12 +1,13 @@
 using AlphaTown.Core.Spatial;
 using AlphaTown.Data.Definitions;
+using AlphaTown.Data.Presentation;
 using AlphaTown.Data.Production;
 using UnityEngine;
 
 namespace AlphaTown.Data.Buildings
 {
     [CreateAssetMenu(menuName = "AlphaTown/Buildings/Building Definition", fileName = "Building_", order = 50)]
-    public sealed class BuildingDefinition : GameDefinition, IBuildingDefinition
+    public sealed class BuildingDefinition : GameDefinition, IBuildingDefinition, IBuildingVisuals
     {
         static readonly BuildingLevel FallbackLevel = new BuildingLevel();
 
@@ -22,6 +23,16 @@ namespace AlphaTown.Data.Buildings
         [SerializeField]
         [Tooltip("Element 0 is level 1, the initial build. Later entries are upgrades.")]
         BuildingLevel[] _levels = { new BuildingLevel() };
+
+        [Header("Presentation")]
+        [Tooltip("Presentation only. Nothing in the simulation reads these.")]
+        [SerializeField] Sprite _icon;
+
+        [Tooltip("Drawn on the map. Falls back to the icon when empty.")]
+        [SerializeField] Sprite _mapSprite;
+
+        [Tooltip("Used when there is no sprite yet, so a placeholder town still reads.")]
+        [SerializeField] Color _placeholderColour = new Color(0.72f, 0.62f, 0.44f, 1f);
 
         [Header("Behaviour")]
         [SerializeField]
@@ -41,6 +52,10 @@ namespace AlphaTown.Data.Buildings
         public string ProducerDefinitionId => _producer != null ? _producer.Id : string.Empty;
 
         public string UpgradesIntoId => _upgradesInto != null ? _upgradesInto.Id : string.Empty;
+
+        public Sprite Icon => _icon;
+        public Sprite MapSprite => _mapSprite != null ? _mapSprite : _icon;
+        public Color PlaceholderColour => _placeholderColour;
 
         public IBuildingLevel GetLevel(int level)
         {

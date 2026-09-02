@@ -3,6 +3,7 @@ using AlphaTown.Core.Events;
 using AlphaTown.Core.Services;
 using AlphaTown.Core.Timing;
 using AlphaTown.Data.Catalog;
+using AlphaTown.Gameplay.Commands;
 using AlphaTown.Gameplay.Saving;
 using AlphaTown.Gameplay.World;
 using AlphaTown.Services.Save;
@@ -73,13 +74,28 @@ namespace AlphaTown.Gameplay.Bootstrap
 
         ISaveService _saveService;
         GameWorld _world;
+        TownCommands _commands;
 
         float _secondsSinceAutoSave;
         float _secondsSinceDriftPoll;
+        float _secondsSinceSaveRequest;
+        bool _saveRequested;
+
+        /// <summary>
+        /// How long a requested save waits before it is written. Long enough that a burst of taps
+        /// costs one file write, short enough that a player killed from the task switcher a moment
+        /// after harvesting keeps the harvest.
+        /// </summary>
+        const float SaveDebounceSeconds = 2f;
 
         public GameWorld World => _world;
         public IEventBus Events => _events;
         public IGameClock Clock => _clock;
+
+        /// <summary>Every player-facing action, for the UI. Null until Awake has run.</summary>
+        public TownCommands Commands => _commands;
+
+        public IGameDatabase Database => _database;
 
         /// <summary>Whether this session's timers can be believed. See TimeTrust.</summary>
         public TimeTrust Trust => _clock != null ? _clock.Trust : TimeTrust.Untrusted;
@@ -108,6 +124,7 @@ namespace AlphaTown.Gameplay.Bootstrap
                 GameWorld.SaveSchemaVersion);
 
             _world = new GameWorld(_database, _clock, _events);
+            _commands = new TownCommands(_world, _database, _clock);
 
             _services = new ServiceRegistry();
             _services.Register<IEventBus>(_events);
@@ -235,10 +252,19 @@ namespace AlphaTown.Gameplay.Bootstrap
                 }
             }
 
+            if (_saveRequested)
+            {
+                _secondsSinceSaveRequest += delta;
+                if (_secondsSinceSaveRequest >= SaveDebounceSeconds)
+                {
+                    SaveGame();
+                    return;
+                }
+            }
+
             _secondsSinceAutoSave += delta;
             if (_secondsSinceAutoSave < _autoSaveIntervalSeconds) return;
 
-            _secondsSinceAutoSave = 0f;
             SaveGame();
         }
 
@@ -276,16 +302,33 @@ namespace AlphaTown.Gameplay.Bootstrap
                 return;
             }
 
-            // Starting balances from the currency definitions, then a first board of orders.
-            // TODO: extend with a NewGameDefinition asset (starting barn level, starting
-            // producers, tutorial state) rather than leaving the town otherwise empty.
+            // Starting balances, then whatever the database's NewGameDefinition seeds: barn
+            // level, starting goods and the buildings the player wakes up owning.
+            // TODO: tutorial state belongs here too, once there is a tutorial.
             _world.InitialiseNewPlayer();
             Log.Info("Bootstrap", "No save found. Started a new town.");
+        }
+
+        /// <summary>
+        /// Asks for a save without writing one now. Called after anything the player would be
+        /// upset to lose — planting, harvesting, building, delivering.
+        ///
+        /// Debounced rather than immediate because a sickle swipe harvests a dozen fields in a
+        /// second, and serialising the whole town a dozen times would show up as a stutter under
+        /// the player's finger.
+        /// </summary>
+        public void RequestSave()
+        {
+            _saveRequested = true;
         }
 
         public void SaveGame()
         {
             if (_world == null || _saveService == null) return;
+
+            _saveRequested = false;
+            _secondsSinceSaveRequest = 0f;
+            _secondsSinceAutoSave = 0f;
 
             _world.Sync();
             if (!_saveService.TrySave(GameWorld.DefaultSaveSlot, _world.CaptureSave()))

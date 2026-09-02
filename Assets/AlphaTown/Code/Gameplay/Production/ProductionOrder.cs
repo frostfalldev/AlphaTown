@@ -26,6 +26,21 @@ namespace AlphaTown.Gameplay.Production
 
         public bool IsStarted => StartedAtTicks > 0;
 
+        /// <summary>0..1 through the run. Zero before it starts, one once it is due.</summary>
+        public float Progress01(long nowTicks)
+        {
+            if (!IsStarted) return 0f;
+
+            var span = CompletesAtTicks - StartedAtTicks;
+            if (span <= 0L) return 1f;
+
+            var elapsed = nowTicks - StartedAtTicks;
+            if (elapsed <= 0L) return 0f;
+            if (elapsed >= span) return 1f;
+
+            return (float)((double)elapsed / span);
+        }
+
         public long RemainingTicks(long nowTicks)
         {
             if (!IsStarted) return CompletesAtTicks;

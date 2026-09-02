@@ -8,6 +8,7 @@ using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
+using AlphaTown.Data.Progression;
 using AlphaTown.Data.Town;
 using AlphaTown.Gameplay.Buildings;
 using AlphaTown.Gameplay.Economy;
@@ -120,11 +121,112 @@ namespace AlphaTown.Gameplay.World
         /// <summary>Which land the player owns. Gated by deeds, not coins.</summary>
         public TownExpansion Expansion { get; }
 
-        /// <summary>Seeds a brand-new town: starting balances, then a first set of orders.</summary>
+        /// <summary>
+        /// Seeds a brand-new town: starting balances, then whatever the new-game definition says
+        /// the player begins with, then a first set of orders.
+        ///
+        /// Everything here is content. A project that authors no <see cref="INewGameDefinition"/>
+        /// gets a bare town with starting currency and an order board, which is a legitimate — if
+        /// unwelcoming — game, and never a crash.
+        /// </summary>
         public void InitialiseNewPlayer()
         {
             this.Wallet.InitialiseNewPlayer();
+
+            var newGame = _database.NewGame;
+            if (newGame != null)
+            {
+                if (newGame.StartingBarnLevel > Barn.Level) Barn.SetLevel(newGame.StartingBarnLevel);
+                GrantStartingItems(newGame.StartingItems);
+                PlaceStartingBuildings(newGame.StartingBuildings);
+            }
+
             Sync();
+        }
+
+        void GrantStartingItems(IReadOnlyList<ItemStack> items)
+        {
+            if (items == null) return;
+
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (items[i].IsEmpty) continue;
+
+                var added = Barn.Add(items[i].ItemId, items[i].Count);
+                if (added >= items[i].Count) continue;
+
+                // Starting goods that do not fit are a content bug, not a player problem: the barn
+                // they start with is too small for the hand they were dealt.
+                Log.Error("World",
+                    "Starting items did not fit the barn: only " + added + " of " + items[i].Count +
+                    " x '" + items[i].ItemId + "' were granted.");
+            }
+        }
+
+        void PlaceStartingBuildings(IReadOnlyList<StartingBuilding> buildings)
+        {
+            if (buildings == null) return;
+
+            for (var i = 0; i < buildings.Count; i++)
+            {
+                var entry = buildings[i];
+                if (string.IsNullOrEmpty(entry.DefinitionId)) continue;
+
+                var result = this.Buildings.GrantBuilding(entry.DefinitionId, entry.Origin, out _);
+                if (result == BuildingActionResult.Success) continue;
+
+                Log.Error("World",
+                    "Could not place starting building '" + entry.DefinitionId + "' at " +
+                    entry.Origin + ": " + result + ".");
+            }
+        }
+
+        /// <summary>
+        /// Collects a producer's finished goods and pays the XP they are worth.
+        ///
+        /// The XP lives here rather than in <see cref="Producer"/> so that production keeps its
+        /// narrow dependency on <see cref="IUnlockGate"/> — a producer needs to know what is
+        /// unlocked, not how to level the town up. Value comes from the items themselves, so
+        /// harvesting a crop and delivering it are priced off the same number.
+        /// </summary>
+        public int Collect(string producerInstanceId)
+        {
+            if (!TryGetProducer(producerInstanceId, out var producer)) return 0;
+
+            var before = SnapshotReady(producer.Ready);
+            var collected = producer.CollectReady(Barn);
+            if (collected <= 0) return 0;
+
+            var xp = 0;
+            for (var i = 0; i < before.Count; i++)
+            {
+                if (!_database.TryGetItem(before[i].ItemId, out var item)) continue;
+
+                // Only what actually made it into the barn earns; a full barn leaves the rest in
+                // the tray, and paying for it now would pay for it twice.
+                var moved = before[i].Count - RemainingCount(producer.Ready, before[i].ItemId);
+                if (moved > 0) xp += item.XpValue * moved;
+            }
+
+            if (xp > 0) this.Progression.GrantXp(xp, XpSource.ProductionCollected, producerInstanceId);
+            return collected;
+        }
+
+        static List<ItemStack> SnapshotReady(IReadOnlyList<ItemStack> ready)
+        {
+            var copy = new List<ItemStack>(ready.Count);
+            for (var i = 0; i < ready.Count; i++) copy.Add(ready[i]);
+            return copy;
+        }
+
+        static int RemainingCount(IReadOnlyList<ItemStack> ready, string itemId)
+        {
+            for (var i = 0; i < ready.Count; i++)
+            {
+                if (string.Equals(ready[i].ItemId, itemId, StringComparison.Ordinal)) return ready[i].Count;
+            }
+
+            return 0;
         }
 
         /// <summary>Places a production building. Instance ids must be unique within a town.</summary>

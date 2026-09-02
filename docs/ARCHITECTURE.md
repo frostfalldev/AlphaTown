@@ -34,7 +34,8 @@ anything else.
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Gameplay      the simulation        │
         │   BarnInventory · Producer · Wallet           │
-        │   TownProgression · OrderBoard · GameWorld    │
+        │   TownProgression · OrderBoard                │
+        │   TownGrid · TownBuildings · GameWorld        │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Services      clock, save, remote   │
@@ -44,11 +45,13 @@ anything else.
         │ AlphaTown.Data          authored content      │
         │   ItemDefinition · RecipeDefinition           │
         │   CurrencyDefinition · ProgressionCurve       │
-        │   OrderTemplateDefinition · reason-code enums │
+        │   OrderTemplateDefinition · BuildingDefinition│
+        │   TownDefinition · reason-code enums          │
         └───────────────────┬──────────────────────────┘
         ┌───────────────────▼──────────────────────────┐
         │ AlphaTown.Core          no dependencies       │
         │   EventBus · IGameClock · Guard · Log         │
+        │   GridPosition · GridSize · GridRect          │
         └──────────────────────────────────────────────┘
 
 AlphaTown.Editor          Editor only, references all of the above
@@ -180,6 +183,36 @@ cut a reward a player is already working toward.
 Full detail, including the reason-code taxonomy and the tuning levers, is in
 [ECONOMY.md](ECONOMY.md).
 
+### Grid — `AlphaTown.Core.Spatial`, `AlphaTown.Gameplay.Grid`
+
+`GridPosition`, `GridSize` and `GridRect` sit in Core because both Data (a building's footprint)
+and Gameplay (placement) need them. Integers only: the simulation never deals in world units,
+which keeps placement exact and save data stable across art changes.
+
+`TownGrid` answers one question — which building instance owns this cell — and nothing else. It is
+deliberately not a tilemap engine; a grid that also understood buildings would become a second copy
+of the building system and stop being testable on its own.
+
+### Buildings — `AlphaTown.Gameplay.Buildings`
+
+`TownBuildings` owns the placed buildings and the grid beneath them: validation, purchase, upgrade,
+move, remove, and construction completion. **This is the primary coin sink** — every charge goes
+through the wallet with `BuildingPurchase` or `BuildingUpgrade`, so what the town costs shows up in
+the economy numbers next to what orders pay in.
+
+Construction is an absolute timestamp like production and orders. "Busy" is derived from
+`TargetLevel > Level` rather than stored, so it survives a save round trip with no second field to
+keep in step, and a zero-second build still completes in the sync that started it.
+
+Coins and materials are checked together before either is taken — charging coins and then failing on
+planks would bill the player for a building they never got.
+
+Buildings reach production through `IProducerHost`, implemented by `GameWorld`, so the two systems
+stay independently testable.
+
+Full detail, including both upgrade paths and the expansion hook, is in
+[BUILDINGS_AND_GRID.md](BUILDINGS_AND_GRID.md).
+
 ### Save — `AlphaTown.Services.Save`
 
 ```
@@ -228,7 +261,8 @@ what they need through their constructors.
 `Assets/AlphaTown/Tests/EditMode` covers the barn's capacity and atomicity rules, the production
 chain (including a twenty-hour absence resolving in one `Sync`), clock pause/resume continuity,
 wallet atomicity and ledger reconciliation, XP cascading and cap behaviour, order generation and
-expiry, a save round trip through the real serializer, and the full economic loop end to end.
+expiry, grid placement rules, building construction and both upgrade paths, a save round trip
+through the real serializer, and the full economic loop end to end.
 
 `TestContent` is tuned so exactly one item is producible at town level 1, which makes generated
 orders deterministic without depending on an RNG seed. Randomness is injected into `GameWorld`

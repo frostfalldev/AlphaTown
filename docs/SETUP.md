@@ -86,10 +86,10 @@ differs.
 
 ### 3.5 Run the tests
 
-**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 52 tests covering the barn, production
-chains, the clock, the wallet and its ledger, town progression, order generation and expiry, save
-round trips, and the full economic loop end to end. They need no scene and should take under a
-second.
+**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 95 tests covering the barn, production
+chains, the clock, the wallet and its ledger, town progression, order generation and expiry, grid
+placement, building construction and upgrades, save round trips, and the full economic loop end to
+end. They need no scene and should take under a second.
 
 ### 3.6 Switch the build target
 
@@ -124,6 +124,10 @@ Nothing is scene-bound yet, by design. When you want the simulation running:
    - a `ProgressionCurve` (**AlphaTown ▸ Economy ▸ Progression Curve**)
 3. Optionally add a **Hard** `CurrencyDefinition` (gems) and one or more
    `OrderTemplateDefinition` assets. Without a template the order board simply stays empty.
+   A `TownDefinition` (**AlphaTown ▸ Town Definition**) sets the buildable grid size; without one
+   the world falls back to 32x32.
+   `BuildingDefinition` assets (**AlphaTown ▸ Buildings ▸ Building Definition**) are what the
+   player spends coins on — set a footprint, a level 1 cost, and optionally a producer.
 4. Author items, recipes and producers under `Assets/AlphaTown/Content/` and register them.
    Set `CoinValue` and `XpValue` on items — order payouts are derived from them.
 5. Add an empty GameObject to the scene, attach **GameRunner**, assign the database.

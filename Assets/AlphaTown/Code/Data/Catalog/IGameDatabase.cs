@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
@@ -6,6 +7,7 @@ using AlphaTown.Data.Production;
 using AlphaTown.Data.Progression;
 using AlphaTown.Data.Recipes;
 using AlphaTown.Data.Storage;
+using AlphaTown.Data.Town;
 
 namespace AlphaTown.Data.Catalog
 {
@@ -21,6 +23,7 @@ namespace AlphaTown.Data.Catalog
         bool TryGetStorage(string id, out IStorageDefinition storage);
         bool TryGetCurrency(string id, out ICurrencyDefinition currency);
         bool TryGetOrderTemplate(string id, out IOrderTemplateDefinition template);
+        bool TryGetBuilding(string id, out IBuildingDefinition building);
 
         // Enumeration, for systems that select content rather than look it up by id — order
         // generation needs to know what the player can currently produce.
@@ -28,6 +31,7 @@ namespace AlphaTown.Data.Catalog
         IReadOnlyList<IRecipeDefinition> Recipes { get; }
         IReadOnlyList<ICurrencyDefinition> Currencies { get; }
         IReadOnlyList<IOrderTemplateDefinition> OrderTemplates { get; }
+        IReadOnlyList<IBuildingDefinition> Buildings { get; }
 
         /// <summary>The starting barn. TODO: multiple storages (barn / silo) once inventory splits.</summary>
         IStorageDefinition DefaultStorage { get; }
@@ -39,5 +43,8 @@ namespace AlphaTown.Data.Catalog
         ICurrencyDefinition HardCurrency { get; }
 
         IProgressionCurve ProgressionCurve { get; }
+
+        /// <summary>Town bounds and layout config. Optional — the world falls back to defaults.</summary>
+        ITownDefinition TownDefinition { get; }
     }
 }

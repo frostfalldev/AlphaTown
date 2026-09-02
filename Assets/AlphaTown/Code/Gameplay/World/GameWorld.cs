@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using AlphaTown.Core.Diagnostics;
 using AlphaTown.Core.Events;
+using AlphaTown.Core.Spatial;
 using AlphaTown.Core.Timing;
 using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
+using AlphaTown.Gameplay.Buildings;
 using AlphaTown.Gameplay.Economy;
+using AlphaTown.Gameplay.Grid;
 using AlphaTown.Gameplay.Inventory;
 using AlphaTown.Gameplay.Orders;
 using AlphaTown.Gameplay.Production;
@@ -24,7 +27,7 @@ namespace AlphaTown.Gameplay.World
     /// unlock, produce more — and it is entirely headless. No MonoBehaviour, no scene, no Unity
     /// API. A test builds one with a manual clock and plays out a week in a millisecond.
     /// </summary>
-    public sealed class GameWorld : ITickable
+    public sealed class GameWorld : ITickable, IProducerHost
     {
         /// <summary>
         /// Bump on the first breaking save change *after* launch, and add the matching migration.
@@ -42,6 +45,9 @@ namespace AlphaTown.Gameplay.World
         const float SyncIntervalSeconds = 1f;
 
         const int HelicopterBoardCapacity = 4;
+
+        /// <summary>Used when the database has no TownDefinition. TODO(expansion): always data.</summary>
+        static readonly GridSize DefaultTownSize = new GridSize(32, 32);
 
         readonly IGameDatabase _database;
         readonly IGameClock _clock;
@@ -79,6 +85,11 @@ namespace AlphaTown.Gameplay.World
             HelicopterOrders = new OrderBoard(
                 OrderKind.Helicopter, HelicopterBoardCapacity,
                 clock, events, progression, Barn, wallet, generator);
+
+            var town = database.TownDefinition;
+            var gridSize = town != null && town.Size.IsValid ? town.Size : DefaultTownSize;
+            Buildings = new TownBuildings(
+                new TownGrid(gridSize), database, clock, events, wallet, Barn, progression, this);
         }
 
         public BarnInventory Barn { get; }
@@ -94,6 +105,9 @@ namespace AlphaTown.Gameplay.World
         public OrderBoard HelicopterOrders { get; }
 
         public IReadOnlyList<Producer> Producers => _producers;
+
+        /// <summary>Placed buildings and the grid they sit on. The primary coin sink.</summary>
+        public TownBuildings Buildings { get; }
 
         /// <summary>Seeds a brand-new town: starting balances, then a first set of orders.</summary>
         public void InitialiseNewPlayer()
@@ -129,11 +143,43 @@ namespace AlphaTown.Gameplay.World
             _producersByInstanceId.TryGetValue(instanceId ?? string.Empty, out producer);
 
         /// <summary>
+        /// <see cref="IProducerHost"/>. Buildings call this when construction finishes; the
+        /// producer's level tracks the building's.
+        /// </summary>
+        public Producer EnsureProducer(string instanceId, string producerDefinitionId, int level)
+        {
+            if (_producersByInstanceId.TryGetValue(instanceId ?? string.Empty, out var existing))
+            {
+                existing.SetLevel(level);
+                return existing;
+            }
+
+            var producer = AddProducer(instanceId, producerDefinitionId);
+            producer?.SetLevel(level);
+            return producer;
+        }
+
+        /// <summary><see cref="IProducerHost"/>. Drops the producer and anything queued in it.</summary>
+        public bool RemoveProducer(string instanceId)
+        {
+            if (!_producersByInstanceId.TryGetValue(instanceId ?? string.Empty, out var producer))
+                return false;
+
+            _producersByInstanceId.Remove(producer.InstanceId);
+            _producers.Remove(producer);
+            return true;
+        }
+
+        /// <summary>
         /// Brings the whole town up to date with the clock. Call on load, on app resume, and
         /// periodically while running.
         /// </summary>
         public void Sync()
         {
+            // Buildings first: a build finishing offline can bring a producer into existence, and
+            // that producer should catch up in the same pass rather than a second later.
+            this.Buildings.Sync();
+
             for (var i = 0; i < _producers.Count; i++) _producers[i].Sync();
             HelicopterOrders.Sync();
         }
@@ -169,7 +215,8 @@ namespace AlphaTown.Gameplay.World
                     Attribution = ToAttributionData(this.Progression.SnapshotAttribution())
                 },
                 Producers = new ProducerSaveData[_producers.Count],
-                OrderBoards = new[] { ToBoardData(HelicopterOrders) }
+                OrderBoards = new[] { ToBoardData(HelicopterOrders) },
+                Town = ToTownData(this.Buildings)
             };
 
             for (var i = 0; i < _producers.Count; i++)
@@ -226,6 +273,11 @@ namespace AlphaTown.Gameplay.World
                     producer.RestoreState(data.Level, data.Orders, ToStacks(data.Ready));
                 }
             }
+
+            // Buildings after producers: a restored building matches itself back to the producer
+            // that was saved alongside it rather than creating a second one.
+            var town = save.Town ?? new TownSaveData();
+            this.Buildings.RestoreState(ToBuildingRestoreData(town.Buildings), town.NextBuildingNumber);
 
             RestoreBoards(save.OrderBoards);
             Sync();
@@ -360,6 +412,34 @@ namespace AlphaTown.Gameplay.World
             return data;
         }
 
+        static TownSaveData ToTownData(TownBuildings buildings)
+        {
+            var all = buildings.All;
+            var data = new TownSaveData
+            {
+                NextBuildingNumber = buildings.NextInstanceNumber,
+                Buildings = new BuildingSaveData[all.Count]
+            };
+
+            for (var i = 0; i < all.Count; i++)
+            {
+                var building = all[i];
+                data.Buildings[i] = new BuildingSaveData
+                {
+                    InstanceId = building.InstanceId,
+                    DefinitionId = building.DefinitionId,
+                    X = building.Origin.X,
+                    Y = building.Origin.Y,
+                    Level = building.Level,
+                    TargetLevel = building.TargetLevel,
+                    ConstructionStartedAtTicks = building.ConstructionStartedAtTicks,
+                    ConstructionCompletesAtTicks = building.ConstructionCompletesAtTicks
+                };
+            }
+
+            return data;
+        }
+
         static ProductionOrder[] ToArray(IReadOnlyList<ProductionOrder> orders)
         {
             if (orders == null || orders.Count == 0) return Array.Empty<ProductionOrder>();
@@ -422,6 +502,29 @@ namespace AlphaTown.Gameplay.World
             {
                 if (data[i] == null) continue;
                 entries.Add(new XpAttributionEntry(data[i].Source, data[i].Total));
+            }
+
+            return entries;
+        }
+
+        static List<BuildingRestoreData> ToBuildingRestoreData(BuildingSaveData[] data)
+        {
+            var entries = new List<BuildingRestoreData>(data != null ? data.Length : 0);
+            if (data == null) return entries;
+
+            for (var i = 0; i < data.Length; i++)
+            {
+                var entry = data[i];
+                if (entry == null || string.IsNullOrEmpty(entry.InstanceId)) continue;
+
+                entries.Add(new BuildingRestoreData(
+                    entry.InstanceId,
+                    entry.DefinitionId,
+                    new GridPosition(entry.X, entry.Y),
+                    entry.Level,
+                    entry.TargetLevel,
+                    entry.ConstructionStartedAtTicks,
+                    entry.ConstructionCompletesAtTicks));
             }
 
             return entries;

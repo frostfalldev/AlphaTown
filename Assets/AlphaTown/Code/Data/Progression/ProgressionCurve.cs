@@ -18,10 +18,10 @@ namespace AlphaTown.Data.Progression
 
         [SerializeField]
         [Tooltip("Paid out on reaching this level. The first entry never pays — the player starts there.")]
-        CurrencyReward[] _rewards = Array.Empty<CurrencyReward>();
+        CurrencyEntry[] _rewards = Array.Empty<CurrencyEntry>();
 
         public int XpToAdvance => _xpToAdvance;
-        public CurrencyReward[] Rewards => _rewards;
+        public CurrencyEntry[] Rewards => _rewards;
     }
 
     [CreateAssetMenu(menuName = "AlphaTown/Economy/Progression Curve", fileName = "ProgressionCurve", order = 31)]

@@ -21,6 +21,7 @@ namespace AlphaTown.Gameplay.Saving
         public ProgressionSaveData Progression = new ProgressionSaveData();
         public ProducerSaveData[] Producers = Array.Empty<ProducerSaveData>();
         public OrderBoardSaveData[] OrderBoards = Array.Empty<OrderBoardSaveData>();
+        public TownSaveData Town = new TownSaveData();
     }
 
     [Serializable]
@@ -94,6 +95,33 @@ namespace AlphaTown.Gameplay.Saving
         public int Kind;
         public int NextOrderNumber = 1;
         public OrderSaveData[] Orders = Array.Empty<OrderSaveData>();
+    }
+
+    [Serializable]
+    public sealed class TownSaveData
+    {
+        public int NextBuildingNumber = 1;
+        public BuildingSaveData[] Buildings = Array.Empty<BuildingSaveData>();
+    }
+
+    [Serializable]
+    public sealed class BuildingSaveData
+    {
+        public string InstanceId;
+        public string DefinitionId;
+
+        /// <summary>Grid origin. Stored as two ints because JsonUtility has no struct shorthand.</summary>
+        public int X;
+        public int Y;
+
+        /// <summary>Zero while the first build is still running.</summary>
+        public int Level;
+
+        public int TargetLevel;
+        public long ConstructionStartedAtTicks;
+
+        /// <summary>Zero when idle. Absolute, so an absence completes the build correctly.</summary>
+        public long ConstructionCompletesAtTicks;
     }
 
     [Serializable]

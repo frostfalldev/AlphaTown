@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using AlphaTown.Core.Diagnostics;
+using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Definitions;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
@@ -8,6 +9,7 @@ using AlphaTown.Data.Production;
 using AlphaTown.Data.Progression;
 using AlphaTown.Data.Recipes;
 using AlphaTown.Data.Storage;
+using AlphaTown.Data.Town;
 using UnityEngine;
 
 namespace AlphaTown.Data.Catalog
@@ -29,6 +31,7 @@ namespace AlphaTown.Data.Catalog
         [SerializeField] StorageDefinition[] _storages;
         [SerializeField] CurrencyDefinition[] _currencies;
         [SerializeField] OrderTemplateDefinition[] _orderTemplates;
+        [SerializeField] BuildingDefinition[] _buildings;
 
         [Header("Well-known entries")]
         [SerializeField]
@@ -45,22 +48,29 @@ namespace AlphaTown.Data.Catalog
 
         [SerializeField] ProgressionCurve _progressionCurve;
 
+        [SerializeField]
+        [Tooltip("Optional. Town bounds; the world falls back to defaults when this is empty.")]
+        TownDefinition _townDefinition;
+
         Dictionary<string, IItemDefinition> _itemsById;
         Dictionary<string, IRecipeDefinition> _recipesById;
         Dictionary<string, IProducerDefinition> _producersById;
         Dictionary<string, IStorageDefinition> _storagesById;
         Dictionary<string, ICurrencyDefinition> _currenciesById;
         Dictionary<string, IOrderTemplateDefinition> _orderTemplatesById;
+        Dictionary<string, IBuildingDefinition> _buildingsById;
 
         IItemDefinition[] _itemList;
         IRecipeDefinition[] _recipeList;
         ICurrencyDefinition[] _currencyList;
         IOrderTemplateDefinition[] _orderTemplateList;
+        IBuildingDefinition[] _buildingList;
 
         public IStorageDefinition DefaultStorage => _defaultStorage;
         public ICurrencyDefinition SoftCurrency => _softCurrency;
         public ICurrencyDefinition HardCurrency => _hardCurrency;
         public IProgressionCurve ProgressionCurve => _progressionCurve;
+        public ITownDefinition TownDefinition => _townDefinition;
 
         public IReadOnlyList<IItemDefinition> Items
         {
@@ -95,6 +105,15 @@ namespace AlphaTown.Data.Catalog
             {
                 EnsureIndexed();
                 return _orderTemplateList;
+            }
+        }
+
+        public IReadOnlyList<IBuildingDefinition> Buildings
+        {
+            get
+            {
+                EnsureIndexed();
+                return _buildingList;
             }
         }
 
@@ -134,6 +153,12 @@ namespace AlphaTown.Data.Catalog
             return _orderTemplatesById.TryGetValue(id ?? string.Empty, out template);
         }
 
+        public bool TryGetBuilding(string id, out IBuildingDefinition building)
+        {
+            EnsureIndexed();
+            return _buildingsById.TryGetValue(id ?? string.Empty, out building);
+        }
+
         /// <summary>Rebuilds the indexes. Call after hot-reloading content in the editor.</summary>
         public void Reindex()
         {
@@ -144,11 +169,13 @@ namespace AlphaTown.Data.Catalog
             _currenciesById = Index<CurrencyDefinition, ICurrencyDefinition>(_currencies, "currency");
             _orderTemplatesById =
                 Index<OrderTemplateDefinition, IOrderTemplateDefinition>(_orderTemplates, "order template");
+            _buildingsById = Index<BuildingDefinition, IBuildingDefinition>(_buildings, "building");
 
             _itemList = ToArray(_itemsById);
             _recipeList = ToArray(_recipesById);
             _currencyList = ToArray(_currenciesById);
             _orderTemplateList = ToArray(_orderTemplatesById);
+            _buildingList = ToArray(_buildingsById);
         }
 
         void OnEnable() => _itemsById = null;

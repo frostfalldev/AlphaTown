@@ -164,6 +164,8 @@ Everything below is data, changeable without a code change:
 | Recipe gating | `RecipeDefinition.UnlockLevel` |
 | Order size, timers, payout scaling | `OrderTemplateDefinition` |
 | Starting balances and currency caps | `CurrencyDefinition` |
+| Build and upgrade costs, build times | `BuildingDefinition` levels |
+| Buildable town size | `TownDefinition` |
 
 Board capacity is still a constant (`GameWorld.HelicopterBoardCapacity`). It moves into data when
 board upgrades exist.
@@ -172,9 +174,9 @@ board upgrades exist.
 
 - **Rerolling an order costs nothing.** `OrderBoard.TryDiscard` is the hook;
   `CurrencySink.OrderReroll` is the reason code waiting for it.
-- **Nothing spends coins yet.** Sinks are enumerated but unused until buildings and expansion
-  land — the economy currently has a faucet and no drain, which is expected at this stage and
-  will read as runaway inflation in the ledger until it is fixed.
+- **The main sink is now buildings.** `BuildingPurchase` and `BuildingUpgrade` are wired up —
+  see [BUILDINGS_AND_GRID.md](BUILDINGS_AND_GRID.md). Expansion and the market are still open, so
+  the drain is narrower than the faucet until those land.
 - **No offline order generation cadence.** The board refills instantly. Township-style pacing
   wants a per-slot cooldown.
 - **Speed-ups are not priced.** `Producer.TrySpeedUp` and `TryFinishNow` work; what they cost

@@ -1,4 +1,5 @@
 using System;
+using AlphaTown.Core.Spatial;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
 using AlphaTown.Data.Orders;
@@ -26,6 +27,25 @@ namespace AlphaTown.Tests.EditMode
         public const string CakeRecipe = "recipe.cake";
 
         public const string Bakery = "bakery";
+
+        // Buildings. Costs are round numbers so a test can assert a balance by hand.
+        public const string Shed = "building.shed";
+        public const string Workshop = "building.workshop";
+        public const string BakeryBuilding = "building.bakery";
+        public const string Hut = "building.hut";
+        public const string Villa = "building.villa";
+
+        public const int ShedCoinCost = 20;
+        public const int WorkshopCoinCost = 10;
+        public const int WorkshopFlourCost = 2;
+        public const int BakeryLevel1CoinCost = 100;
+        public const int BakeryLevel2CoinCost = 200;
+        public const int BakeryLevel1BuildSeconds = 60;
+        public const int BakeryLevel2BuildSeconds = 120;
+
+        /// <summary>Small enough that out-of-bounds cases are easy to write.</summary>
+        public const int TownWidth = 8;
+        public const int TownHeight = 8;
         public const string HelicopterTemplate = "order.helicopter";
 
         public const int BreadCoinValue = 20;
@@ -61,14 +81,65 @@ namespace AlphaTown.Tests.EditMode
                 .WithCurrency(new FakeCurrency(Coins, CurrencyKind.Soft, startingCoins))
                 .WithCurrency(new FakeCurrency(Gems, CurrencyKind.Hard, startingGems))
                 .WithProgressionCurve(new FakeProgressionCurve(xpCurve ?? DefaultXpCurve))
-                .WithOrderTemplate(orderTemplate ?? SingleBreadTemplate());
+                .WithOrderTemplate(orderTemplate ?? SingleBreadTemplate())
+                .WithTown(new FakeTownDefinition(TownWidth, TownHeight));
+
+            AddBuildings(database);
 
             database.WithProducer(new FakeProducerDefinition(
                 Bakery,
                 new IRecipeDefinition[] { breadRecipe, cakeRecipe },
-                new FakeProducerLevel(queueCapacity: 3, parallelSlots: 1)));
+                new FakeProducerLevel(queueCapacity: 3, parallelSlots: 1),
+                new FakeProducerLevel(queueCapacity: 5, parallelSlots: 2)));
 
             return database;
+        }
+
+        /// <summary>
+        /// A 1x1 instant shed for placement cases, a workshop that also costs materials, a 2x2
+        /// bakery with a timed two-level upgrade path and a producer, and a hut that transforms
+        /// into a larger villa.
+        /// </summary>
+        static void AddBuildings(FakeDatabase database)
+        {
+            database.WithBuilding(new FakeBuildingDefinition(
+                Shed,
+                new GridSize(1, 1),
+                new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, ShedCoinCost) })));
+
+            database.WithBuilding(new FakeBuildingDefinition(
+                Workshop,
+                new GridSize(1, 1),
+                new FakeBuildingLevel(
+                    0,
+                    new[] { new CurrencyAmount(Coins, WorkshopCoinCost) },
+                    new[] { new ItemStack(Flour, WorkshopFlourCost) })));
+
+            database.WithBuilding(new FakeBuildingDefinition(
+                BakeryBuilding,
+                new GridSize(2, 2),
+                new FakeBuildingLevel(
+                    BakeryLevel1BuildSeconds,
+                    new[] { new CurrencyAmount(Coins, BakeryLevel1CoinCost) }),
+                new FakeBuildingLevel(
+                    BakeryLevel2BuildSeconds,
+                    new[] { new CurrencyAmount(Coins, BakeryLevel2CoinCost) }))
+            {
+                ProducerDefinitionId = Bakery
+            });
+
+            database.WithBuilding(new FakeBuildingDefinition(
+                Villa,
+                new GridSize(2, 2),
+                new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, 150) })));
+
+            database.WithBuilding(new FakeBuildingDefinition(
+                Hut,
+                new GridSize(1, 1),
+                new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, 50) }))
+            {
+                UpgradesIntoId = Villa
+            });
         }
 
         /// <summary>Asks for exactly one item type, exactly one unit. Deterministic at level 1.</summary>

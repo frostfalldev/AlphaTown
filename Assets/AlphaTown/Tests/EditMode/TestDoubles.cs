@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using AlphaTown.Core.Spatial;
+using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
@@ -8,6 +10,8 @@ using AlphaTown.Data.Production;
 using AlphaTown.Data.Progression;
 using AlphaTown.Data.Recipes;
 using AlphaTown.Data.Storage;
+using AlphaTown.Data.Town;
+using AlphaTown.Gameplay.Production;
 using AlphaTown.Gameplay.Progression;
 using AlphaTown.Services.Save;
 
@@ -203,6 +207,86 @@ namespace AlphaTown.Tests.EditMode
         public bool IsRecipeUnlocked(IRecipeDefinition recipe) => recipe != null && IsUnlocked(recipe.UnlockLevel);
     }
 
+    internal sealed class FakeBuildingLevel : IBuildingLevel
+    {
+        public FakeBuildingLevel(int constructionSeconds = 0, CurrencyAmount[] currencyCost = null,
+                                 ItemStack[] itemCost = null)
+        {
+            ConstructionTime = TimeSpan.FromSeconds(constructionSeconds);
+            CurrencyCost = currencyCost ?? Array.Empty<CurrencyAmount>();
+            ItemCost = itemCost ?? Array.Empty<ItemStack>();
+        }
+
+        public TimeSpan ConstructionTime { get; }
+        public IReadOnlyList<CurrencyAmount> CurrencyCost { get; }
+        public IReadOnlyList<ItemStack> ItemCost { get; }
+    }
+
+    internal sealed class FakeBuildingDefinition : IBuildingDefinition
+    {
+        readonly IBuildingLevel[] _levels;
+
+        public FakeBuildingDefinition(string id, GridSize footprint, params IBuildingLevel[] levels)
+        {
+            Id = id;
+            Footprint = footprint;
+            _levels = levels != null && levels.Length > 0
+                ? levels
+                : new IBuildingLevel[] { new FakeBuildingLevel() };
+        }
+
+        public string Id { get; }
+        public string DisplayNameKey => "building." + Id;
+        public BuildingCategory Category { get; set; } = BuildingCategory.Production;
+        public GridSize Footprint { get; }
+        public int UnlockLevel { get; set; } = 1;
+        public int MaxLevel => _levels.Length;
+        public string ProducerDefinitionId { get; set; } = string.Empty;
+        public string UpgradesIntoId { get; set; } = string.Empty;
+
+        public IBuildingLevel GetLevel(int level)
+        {
+            var index = level < 1 ? 0 : (level > _levels.Length ? _levels.Length - 1 : level - 1);
+            return _levels[index];
+        }
+    }
+
+    internal sealed class FakeTownDefinition : ITownDefinition
+    {
+        public FakeTownDefinition(int width, int height)
+        {
+            Size = new GridSize(width, height);
+        }
+
+        public string Id => "town.test";
+        public GridSize Size { get; }
+    }
+
+    /// <summary>
+    /// Records producer attachment without standing up a world, so building tests can assert that
+    /// a finished factory got a producer at the right level. Returning null is fine — TownBuildings
+    /// never reads the result.
+    /// </summary>
+    internal sealed class RecordingProducerHost : IProducerHost
+    {
+        public readonly List<string> Ensured = new List<string>();
+        public readonly List<string> Removed = new List<string>();
+        public readonly Dictionary<string, int> LevelsByInstance = new Dictionary<string, int>();
+
+        public Producer EnsureProducer(string instanceId, string producerDefinitionId, int level)
+        {
+            Ensured.Add(instanceId);
+            LevelsByInstance[instanceId] = level;
+            return null;
+        }
+
+        public bool RemoveProducer(string instanceId)
+        {
+            Removed.Add(instanceId);
+            return true;
+        }
+    }
+
     internal sealed class FakeDatabase : IGameDatabase
     {
         readonly Dictionary<string, IItemDefinition> _items = new Dictionary<string, IItemDefinition>();
@@ -214,20 +298,25 @@ namespace AlphaTown.Tests.EditMode
         readonly Dictionary<string, IOrderTemplateDefinition> _orderTemplates =
             new Dictionary<string, IOrderTemplateDefinition>();
 
+        readonly Dictionary<string, IBuildingDefinition> _buildings = new Dictionary<string, IBuildingDefinition>();
+
         readonly List<IItemDefinition> _itemList = new List<IItemDefinition>();
         readonly List<IRecipeDefinition> _recipeList = new List<IRecipeDefinition>();
         readonly List<ICurrencyDefinition> _currencyList = new List<ICurrencyDefinition>();
         readonly List<IOrderTemplateDefinition> _orderTemplateList = new List<IOrderTemplateDefinition>();
+        readonly List<IBuildingDefinition> _buildingList = new List<IBuildingDefinition>();
 
         public IStorageDefinition DefaultStorage { get; set; }
         public ICurrencyDefinition SoftCurrency { get; set; }
         public ICurrencyDefinition HardCurrency { get; set; }
         public IProgressionCurve ProgressionCurve { get; set; }
+        public ITownDefinition TownDefinition { get; set; }
 
         public IReadOnlyList<IItemDefinition> Items => _itemList;
         public IReadOnlyList<IRecipeDefinition> Recipes => _recipeList;
         public IReadOnlyList<ICurrencyDefinition> Currencies => _currencyList;
         public IReadOnlyList<IOrderTemplateDefinition> OrderTemplates => _orderTemplateList;
+        public IReadOnlyList<IBuildingDefinition> Buildings => _buildingList;
 
         public FakeDatabase WithItem(IItemDefinition item)
         {
@@ -273,6 +362,19 @@ namespace AlphaTown.Tests.EditMode
             return this;
         }
 
+        public FakeDatabase WithBuilding(IBuildingDefinition building)
+        {
+            _buildings[building.Id] = building;
+            _buildingList.Add(building);
+            return this;
+        }
+
+        public FakeDatabase WithTown(ITownDefinition town)
+        {
+            TownDefinition = town;
+            return this;
+        }
+
         public FakeDatabase WithProgressionCurve(IProgressionCurve curve)
         {
             ProgressionCurve = curve;
@@ -296,6 +398,9 @@ namespace AlphaTown.Tests.EditMode
 
         public bool TryGetOrderTemplate(string id, out IOrderTemplateDefinition template) =>
             _orderTemplates.TryGetValue(id ?? string.Empty, out template);
+
+        public bool TryGetBuilding(string id, out IBuildingDefinition building) =>
+            _buildings.TryGetValue(id ?? string.Empty, out building);
     }
 
     /// <summary>Save store backed by a dictionary, so save tests never touch the filesystem.</summary>

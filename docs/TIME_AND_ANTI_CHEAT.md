@@ -49,7 +49,30 @@ The sample is corrected by half the round trip, on the standard assumption that 
 roughly symmetric. Crude, and good to well within a second — far tighter than any timer the game
 gates on.
 
+### Timeout and retry
+
+Each request gives up after ten seconds. A failure schedules a retry on a doubling backoff —
+five seconds, then ten, then twenty, up to a five-minute ceiling — and by default the session
+keeps trying for as long as it runs. A phone that starts on a plane verifies itself within minutes
+of landing without anyone tapping anything.
+
+Retries are driven by the **monotonic clock**, ticked from the same once-a-second pump as the drift
+check. No coroutines and no timers, which means the whole thing is testable by advancing a number —
+and a player changing their device clock cannot make a backoff appear to have elapsed.
+
 ---
+
+## Choosing a clock
+
+One field on `GameRunner` picks between the three sources:
+
+| Mode | Source | Use |
+| --- | --- | --- |
+| `Server` | `ServerTimeSource` | Builds. The only correct choice for anything a player sees. |
+| `Device` | `DeviceTimeSource` | Local iteration without the network. Logs a warning every launch. |
+| `Manual` | `ManualTimeSource` | Time-travel debugging. Editor and development builds only — a release build refuses it and falls back to `Server`. |
+
+Everything downstream reads `ITimeSource` and never learns which it got.
 
 ## Trust levels
 

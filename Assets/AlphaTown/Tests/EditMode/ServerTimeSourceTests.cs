@@ -150,6 +150,166 @@ namespace AlphaTown.Tests.EditMode
             Assert.That(_source.Trust, Is.EqualTo(TimeTrust.Stale));
         }
 
+        // --- Retry ----------------------------------------------------------------------------
+
+        ServerTimeSource UnreachableSource(SyncRetryPolicy policy)
+        {
+            _provider.IsReachable = false;
+            return new ServerTimeSource(_device, _monotonic, _provider, retryPolicy: policy);
+        }
+
+        [Test]
+        public void AFailedSync_SchedulesARetry()
+        {
+            var source = UnreachableSource(new SyncRetryPolicy(initialDelay: TimeSpan.FromSeconds(5)));
+
+            source.RequestSync();
+
+            Assert.That(source.FailedSyncAttempts, Is.EqualTo(1));
+            Assert.That(source.IsRetryPending, Is.True);
+            Assert.That(_provider.RequestCount, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void TickSync_DoesNothingBeforeTheBackoffElapses()
+        {
+            var source = UnreachableSource(new SyncRetryPolicy(initialDelay: TimeSpan.FromSeconds(5)));
+            source.RequestSync();
+
+            _monotonic.Advance(TimeSpan.FromSeconds(4));
+
+            Assert.That(source.TickSync(), Is.False);
+            Assert.That(_provider.RequestCount, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void TickSync_RetriesOnceTheBackoffElapses()
+        {
+            var source = UnreachableSource(new SyncRetryPolicy(initialDelay: TimeSpan.FromSeconds(5)));
+            source.RequestSync();
+
+            _monotonic.Advance(TimeSpan.FromSeconds(5));
+
+            Assert.That(source.TickSync(), Is.True);
+            Assert.That(_provider.RequestCount, Is.EqualTo(2));
+            Assert.That(source.FailedSyncAttempts, Is.EqualTo(2));
+        }
+
+        /// <summary>
+        /// A phone that cannot reach the network usually cannot reach it for a while, so the gap
+        /// grows rather than hammering the request flat out.
+        /// </summary>
+        [Test]
+        public void RetriesBackOffExponentially()
+        {
+            var source = UnreachableSource(new SyncRetryPolicy(initialDelay: TimeSpan.FromSeconds(5)));
+            source.RequestSync();
+
+            _monotonic.Advance(TimeSpan.FromSeconds(5));
+            source.TickSync();
+
+            // The second gap is ten seconds, not five.
+            _monotonic.Advance(TimeSpan.FromSeconds(5));
+            Assert.That(source.TickSync(), Is.False);
+
+            _monotonic.Advance(TimeSpan.FromSeconds(5));
+            Assert.That(source.TickSync(), Is.True);
+            Assert.That(_provider.RequestCount, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void ASuccessfulRetry_SynchronisesAndStopsRetrying()
+        {
+            var source = UnreachableSource(new SyncRetryPolicy(initialDelay: TimeSpan.FromSeconds(5)));
+            source.RequestSync();
+            Assert.That(source.Trust, Is.EqualTo(TimeTrust.Untrusted));
+
+            _provider.IsReachable = true;
+            _monotonic.Advance(TimeSpan.FromSeconds(5));
+            Assert.That(source.TickSync(), Is.True);
+
+            Assert.That(source.Trust, Is.EqualTo(TimeTrust.Synchronized));
+            Assert.That(source.FailedSyncAttempts, Is.EqualTo(0));
+            Assert.That(source.IsRetryPending, Is.False);
+            Assert.That(source.UtcNowTicks, Is.EqualTo(ServerStart.Ticks));
+        }
+
+        [Test]
+        public void RetriesStop_AtTheAttemptLimit()
+        {
+            var source = UnreachableSource(
+                new SyncRetryPolicy(maxAttempts: 2, initialDelay: TimeSpan.FromSeconds(5)));
+
+            source.RequestSync();
+            _monotonic.Advance(TimeSpan.FromSeconds(5));
+            source.TickSync();
+
+            Assert.That(_provider.RequestCount, Is.EqualTo(2));
+            Assert.That(source.IsRetryPending, Is.False, "the limit was reached");
+
+            _monotonic.Advance(TimeSpan.FromHours(1));
+            Assert.That(source.TickSync(), Is.False);
+            Assert.That(_provider.RequestCount, Is.EqualTo(2));
+        }
+
+        /// <summary>The default: a phone that walks back into signal should verify itself.</summary>
+        [Test]
+        public void UnlimitedRetries_KeepGoing()
+        {
+            var source = UnreachableSource(
+                new SyncRetryPolicy(maxAttempts: 0, initialDelay: TimeSpan.FromSeconds(5)));
+            source.RequestSync();
+
+            for (var i = 0; i < 5; i++)
+            {
+                _monotonic.Advance(TimeSpan.FromMinutes(10));
+                source.TickSync();
+            }
+
+            Assert.That(_provider.RequestCount, Is.EqualTo(6));
+            Assert.That(source.IsRetryPending, Is.True);
+        }
+
+        [Test]
+        public void ARequestedSync_ClearsAPendingRetry()
+        {
+            var source = UnreachableSource(new SyncRetryPolicy(initialDelay: TimeSpan.FromSeconds(5)));
+            source.RequestSync();
+            Assert.That(source.IsRetryPending, Is.True);
+
+            _provider.IsReachable = true;
+            source.RequestSync();
+
+            Assert.That(source.IsRetryPending, Is.False);
+            Assert.That(source.Trust, Is.EqualTo(TimeTrust.Synchronized));
+        }
+
+        [Test]
+        public void RetryDelay_ClampsToTheCeiling()
+        {
+            var policy = new SyncRetryPolicy(
+                initialDelay: TimeSpan.FromSeconds(5),
+                backoffMultiplier: 2f,
+                maxDelay: TimeSpan.FromSeconds(30));
+
+            Assert.That(policy.DelayForAttempt(1), Is.EqualTo(TimeSpan.FromSeconds(5)));
+            Assert.That(policy.DelayForAttempt(2), Is.EqualTo(TimeSpan.FromSeconds(10)));
+            Assert.That(policy.DelayForAttempt(3), Is.EqualTo(TimeSpan.FromSeconds(20)));
+            Assert.That(policy.DelayForAttempt(4), Is.EqualTo(TimeSpan.FromSeconds(30)));
+            Assert.That(policy.DelayForAttempt(50), Is.EqualTo(TimeSpan.FromSeconds(30)));
+        }
+
+        [Test]
+        public void WithoutAProvider_NoRetryIsScheduled()
+        {
+            var offline = new ServerTimeSource(_device, _monotonic);
+
+            offline.RequestSync();
+
+            Assert.That(offline.IsRetryPending, Is.False, "there is nothing to retry against");
+            Assert.That(offline.TickSync(), Is.False);
+        }
+
         // --- Clock jumps ----------------------------------------------------------------------
 
         [Test]

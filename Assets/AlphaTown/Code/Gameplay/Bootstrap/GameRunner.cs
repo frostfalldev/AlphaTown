@@ -43,6 +43,19 @@ namespace AlphaTown.Gameplay.Bootstrap
                  "Leave empty and the session runs on unverified device time.")]
         string _timeServerUrl = string.Empty;
 
+        [SerializeField, Min(1)]
+        [Tooltip("Seconds before a time request is abandoned.")]
+        int _timeSyncTimeoutSeconds = 10;
+
+        [SerializeField, Min(1f)]
+        [Tooltip("Delay before the first retry. Doubles each failure, up to five minutes.")]
+        float _timeSyncRetryDelaySeconds = 5f;
+
+        [SerializeField, Min(0)]
+        [Tooltip("Zero keeps retrying for the life of the session, which is what a phone that " +
+                 "walks back into signal wants.")]
+        int _timeSyncMaxAttempts;
+
         /// <summary>How often the device clock is checked for tampering. Cheap, but not free.</summary>
         const float ClockDriftPollSeconds = 1f;
 
@@ -52,7 +65,12 @@ namespace AlphaTown.Gameplay.Bootstrap
         ServiceRegistry _services;
         EventBus _events;
         GameClock _clock;
+        /// <summary>Non-null only in Server mode. Everything that touches it is guarded.</summary>
         ServerTimeSource _timeSource;
+
+        /// <summary>Non-null only in Manual mode, so a debug menu can drive time by hand.</summary>
+        ManualTimeSource _manualTime;
+
         ISaveService _saveService;
         GameWorld _world;
 
@@ -64,7 +82,10 @@ namespace AlphaTown.Gameplay.Bootstrap
         public IGameClock Clock => _clock;
 
         /// <summary>Whether this session's timers can be believed. See TimeTrust.</summary>
-        public TimeTrust Trust => _timeSource != null ? _timeSource.Trust : TimeTrust.Untrusted;
+        public TimeTrust Trust => _clock != null ? _clock.Trust : TimeTrust.Untrusted;
+
+        /// <summary>The hand-driven clock in Manual mode, for time-travel debugging. Null otherwise.</summary>
+        public ManualTimeSource ManualTime => _manualTime;
 
         void Awake()
         {
@@ -79,9 +100,7 @@ namespace AlphaTown.Gameplay.Bootstrap
             QualitySettings.vSyncCount = 0;
 
             _events = new EventBus();
-            _timeSource = BuildTimeSource();
-            _timeSource.ClockJumpDetected += OnClockJumpDetected;
-            _clock = new GameClock(_timeSource);
+            _clock = new GameClock(BuildTimeSource());
             _saveService = new SaveService(
                 FileSaveStore.CreateDefault(),
                 new JsonSaveSerializer(UnityEngine.Debug.isDebugBuild),
@@ -96,41 +115,68 @@ namespace AlphaTown.Gameplay.Bootstrap
             _services.Register(_saveService);
             _services.Register(_world);
 
-            RestoreTimeState();
+            if (_timeSource != null)
+            {
+                _timeSource.ClockJumpDetected += OnClockJumpDetected;
+                RestoreTimeState();
+            }
+
             LoadOrCreate();
 
             // Fired off after the world exists so the answer can catch it up when it lands.
-            _timeSource.RequestSync(OnSyncCompleted);
+            if (_timeSource != null) _timeSource.RequestSync(OnSyncCompleted);
         }
 
         /// <summary>
-        /// Both modes go through <see cref="ServerTimeSource"/>; Device mode simply has nothing to
-        /// ask. Even unsynced, that beats the raw device clock — time still advances on a
-        /// monotonic counter, so moving the clock mid-session does nothing.
+        /// Picks the clock. One switch, three concrete sources, and everything downstream reads
+        /// the same <see cref="ITimeSource"/> without knowing which it got.
         /// </summary>
-        ServerTimeSource BuildTimeSource()
+        ITimeSource BuildTimeSource()
         {
-            IServerTimeProvider provider = null;
-
-            if (_timeSourceMode == TimeSourceMode.Server)
+            if (_timeSourceMode == TimeSourceMode.Manual)
             {
-                if (string.IsNullOrEmpty(_timeServerUrl))
-                {
-                    Log.Warn("Bootstrap",
-                        "Time source is Server but no URL is set. Falling back to unverified device time.");
-                }
-                else
-                {
-                    provider = new HttpDateHeaderTimeProvider(_timeServerUrl);
-                }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Log.Warn("Bootstrap",
+                    "Running on a hand-driven clock. Debug only — drive it through GameRunner.ManualTime.");
+
+                _manualTime = new ManualTimeSource(System.DateTime.UtcNow);
+                return _manualTime;
+#else
+                Log.Error("Bootstrap",
+                    "Manual time is not available in a release build. Using server time instead.");
+#endif
+            }
+
+            if (_timeSourceMode == TimeSourceMode.Device)
+            {
+                Log.Warn("Bootstrap",
+                    "Running on the raw device clock. Every timer in the game is unverified, and a " +
+                    "player who changes their clock finishes all of them at once. Do not ship this.");
+
+                return new DeviceTimeSource();
+            }
+
+            IServerTimeProvider provider = null;
+            if (string.IsNullOrEmpty(_timeServerUrl))
+            {
+                Log.Warn("Bootstrap",
+                    "Time source is Server but no URL is set. The session runs on unverified device " +
+                    "time until one is configured.");
             }
             else
             {
-                Log.Warn("Bootstrap",
-                    "Running on device time. Timers are unverified — this must not ship.");
+                provider = new HttpDateHeaderTimeProvider(_timeServerUrl, _timeSyncTimeoutSeconds);
             }
 
-            return new ServerTimeSource(new DeviceTimeSource(), new StopwatchMonotonicClock(), provider);
+            _timeSource = new ServerTimeSource(
+                new DeviceTimeSource(),
+                new StopwatchMonotonicClock(),
+                provider,
+                retryPolicy: new SyncRetryPolicy(
+                    _timeSyncMaxAttempts,
+                    System.TimeSpan.FromSeconds(_timeSyncRetryDelaySeconds)));
+
+            return _timeSource;
         }
 
         void RestoreTimeState()
@@ -148,9 +194,9 @@ namespace AlphaTown.Gameplay.Bootstrap
         {
             if (!success)
             {
+                // ServerTimeSource has already scheduled a retry and logged the backoff.
                 Log.Warn("Bootstrap",
-                    "Playing on " + _timeSource.Trust + " time. Timers will be verified once the " +
-                    "server is reachable.");
+                    "Playing on " + Trust + " time. Timers will be verified once the server answers.");
                 return;
             }
 
@@ -166,7 +212,7 @@ namespace AlphaTown.Gameplay.Bootstrap
             Log.Warn("Bootstrap",
                 "Device clock jumped by " + System.TimeSpan.FromTicks(driftTicks) + ". Re-syncing.");
 
-            _timeSource.RequestSync(OnSyncCompleted);
+            if (_timeSource != null) _timeSource.RequestSync(OnSyncCompleted);
         }
 
         void Update()
@@ -181,7 +227,12 @@ namespace AlphaTown.Gameplay.Bootstrap
             if (_secondsSinceDriftPoll >= ClockDriftPollSeconds)
             {
                 _secondsSinceDriftPoll = 0f;
-                _timeSource.PollDeviceDrift();
+
+                if (_timeSource != null)
+                {
+                    _timeSource.PollDeviceDrift();
+                    _timeSource.TickSync();
+                }
             }
 
             _secondsSinceAutoSave += delta;
@@ -207,9 +258,11 @@ namespace AlphaTown.Gameplay.Bootstrap
 
             // The monotonic counter can stop while a device sleeps, so the clock is re-based
             // before anything reads it, and re-verified as soon as the network allows.
-            _timeSource.RebaselineAfterSuspend();
+            if (_timeSource != null) _timeSource.RebaselineAfterSuspend();
+
             _world.Sync();
-            _timeSource.RequestSync(OnSyncCompleted);
+
+            if (_timeSource != null) _timeSource.RequestSync(OnSyncCompleted);
         }
 
         void OnApplicationQuit() => SaveGame();

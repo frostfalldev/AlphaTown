@@ -17,7 +17,7 @@ foundations the rest gets built on.
 - Farming: fields as no-input producers, with auto-replant as a data-driven upgrade
 - Order board pacing: per-slot cooldowns throttling the main coin faucet
 - Expansion: land bought with deeds earned from orders, not coins
-- Server-verified time, so timers survive a player editing their device clock
+- Server-verified time with retry and offline fallback, so timers survive a player editing their clock
 - Editor tooling that applies player settings, quality levels and a mobile URP profile
 - EditMode tests covering the simulation, with no scene required
 

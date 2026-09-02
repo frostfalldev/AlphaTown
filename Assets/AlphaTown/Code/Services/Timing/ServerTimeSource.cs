@@ -30,7 +30,14 @@ namespace AlphaTown.Services.Timing
         readonly ITimeSource _device;
         readonly IMonotonicClock _monotonic;
         readonly IServerTimeProvider _provider;
+        readonly SyncRetryPolicy _retryPolicy;
         readonly long _toleranceTicks;
+
+        Action<bool> _syncCallback;
+        long _nextRetryMonotonicTicks;
+        int _failedAttempts;
+        bool _syncInFlight;
+        bool _retryPending;
 
         long _baselineUtcTicks;
         long _baselineMonotonicTicks;
@@ -43,11 +50,13 @@ namespace AlphaTown.Services.Timing
             ITimeSource deviceTime,
             IMonotonicClock monotonic,
             IServerTimeProvider provider = null,
-            TimeSpan? clockJumpTolerance = null)
+            TimeSpan? clockJumpTolerance = null,
+            SyncRetryPolicy retryPolicy = null)
         {
             _device = Guard.NotNull(deviceTime, nameof(deviceTime));
             _monotonic = Guard.NotNull(monotonic, nameof(monotonic));
             _provider = provider;
+            _retryPolicy = retryPolicy ?? SyncRetryPolicy.Default;
             _toleranceTicks = (clockJumpTolerance ?? DefaultClockJumpTolerance).Ticks;
 
             BaselineFromDevice();
@@ -80,6 +89,12 @@ namespace AlphaTown.Services.Timing
         /// <summary>True once the device clock has been caught moving during this session.</summary>
         public bool HasDetectedClockJump { get; private set; }
 
+        /// <summary>Syncs that have failed since the last success. Reset by a successful sample.</summary>
+        public int FailedSyncAttempts => _failedAttempts;
+
+        /// <summary>True while a retry is waiting for its backoff to elapse.</summary>
+        public bool IsRetryPending => _retryPending;
+
         /// <summary>Restores the offset and floor written by a previous session.</summary>
         public void RestoreState(TimeSyncSaveData state)
         {
@@ -107,30 +122,84 @@ namespace AlphaTown.Services.Timing
         /// </summary>
         public void RequestSync(Action<bool> onComplete = null)
         {
+            _syncCallback = onComplete;
+            _failedAttempts = 0;
+            _retryPending = false;
+
+            BeginSyncAttempt();
+        }
+
+        /// <summary>
+        /// Fires a retry whose backoff has elapsed. Call it from the same periodic pump as
+        /// <see cref="PollDeviceDrift"/>; it is a comparison and a branch when nothing is due.
+        ///
+        /// Retries are driven by the monotonic clock rather than a timer or a coroutine, so the
+        /// whole thing is testable by advancing a number, and a device clock change cannot make
+        /// the backoff appear to have elapsed.
+        /// </summary>
+        public bool TickSync()
+        {
+            if (!_retryPending || _syncInFlight) return false;
+            if (_monotonic.ElapsedTicks < _nextRetryMonotonicTicks) return false;
+
+            _retryPending = false;
+            BeginSyncAttempt();
+            return true;
+        }
+
+        void BeginSyncAttempt()
+        {
             if (_provider == null)
             {
                 Log.Warn("Time",
                     "No server time provider configured. Running on " + _trust +
                     " time — every timer in the game is unverified.");
-                onComplete?.Invoke(false);
+                _syncCallback?.Invoke(false);
                 return;
             }
 
-            _provider.RequestTime(sample =>
-            {
-                if (sample.Success)
-                {
-                    ApplyServerSample(sample.ServerUtcTicks, sample.RoundTripTicks);
-                }
-                else
-                {
-                    Log.Warn("Time",
-                        "Server time unavailable. Continuing on " + _trust +
-                        " time; timers will be verified on the next successful sync.");
-                }
+            if (_syncInFlight) return;
 
-                onComplete?.Invoke(sample.Success);
-            });
+            _syncInFlight = true;
+            _provider.RequestTime(OnSampleReceived);
+        }
+
+        void OnSampleReceived(ServerTimeSample sample)
+        {
+            _syncInFlight = false;
+
+            if (sample.Success)
+            {
+                ApplyServerSample(sample.ServerUtcTicks, sample.RoundTripTicks);
+                _failedAttempts = 0;
+                _retryPending = false;
+                _syncCallback?.Invoke(true);
+                return;
+            }
+
+            _failedAttempts++;
+            ScheduleRetry();
+            _syncCallback?.Invoke(false);
+        }
+
+        void ScheduleRetry()
+        {
+            if (!_retryPolicy.ShouldRetry(_failedAttempts))
+            {
+                _retryPending = false;
+                Log.Warn("Time",
+                    "Gave up syncing after " + _failedAttempts + " attempts. Running on " + _trust +
+                    " time until something asks again.");
+                return;
+            }
+
+            var delay = _retryPolicy.DelayForAttempt(_failedAttempts);
+            _nextRetryMonotonicTicks = _monotonic.ElapsedTicks + delay.Ticks;
+            _retryPending = true;
+
+            Log.Warn("Time",
+                "Server time unavailable (attempt " + _failedAttempts + "). Retrying in " + delay +
+                "; continuing on " + _trust + " time.");
         }
 
         /// <summary>

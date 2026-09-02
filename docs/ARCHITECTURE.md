@@ -86,7 +86,11 @@ deterministic tests share one code path.
   session. Moving it achieves nothing.
 - `DeviceTimeSource` — the raw device clock. Used as the fallback *inside* `ServerTimeSource`,
   never on its own in a build.
-- `ManualTimeSource` — driven by hand, for tests and the debug menu.
+- `ManualTimeSource` — driven by hand, for tests and time-travel debugging.
+
+One field on `GameRunner` picks between the three, and a failed sync retries on a doubling backoff
+driven by the monotonic clock rather than a coroutine — so the retry path is testable by advancing
+a number.
 
 Every source reports a `TimeTrust`, surfaced up through `IGameClock.Trust`, so a system handing
 out real value on a timer can ask whether this session's clock can be believed.

@@ -86,7 +86,7 @@ differs.
 
 ### 3.5 Run the tests
 
-**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 167 tests covering the barn, production
+**Window ▸ General ▸ Test Runner ▸ EditMode ▸ Run All.** 177 tests covering the barn, production
 chains, clock synchronisation and clock tampering, the wallet and its ledger, town progression,
 order generation, expiry and slot pacing, the farming loop, grid placement, building construction
 and upgrades, land purchase, save round trips, and the full economic loop end to end. They need no scene and should take under a second.
@@ -102,8 +102,12 @@ On the **GameRunner** component, set *Time Server Url* to something on your own 
 `Date` header is read as the time; the response body is ignored, so any endpoint will do.
 
 Leave it empty and the game runs on unverified device time, which is fine for local iteration and
-must never ship — every timer in the game is a comparison against this clock. Set *Time Source
-Mode* to **Device** to skip the network entirely while iterating.
+must never ship — every timer in the game is a comparison against this clock.
+
+*Time Source Mode* picks between **Server**, **Device** (raw device clock, no network) and
+**Manual** (hand-driven, for time-travel debugging; a release build refuses it). Requests time out
+after *Time Sync Timeout Seconds* and retry on a doubling backoff starting at *Time Sync Retry
+Delay Seconds*; leave *Time Sync Max Attempts* at zero to keep trying for the whole session.
 
 See [TIME_AND_ANTI_CHEAT.md](TIME_AND_ANTI_CHEAT.md).
 

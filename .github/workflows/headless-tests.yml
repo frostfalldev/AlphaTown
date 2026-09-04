@@ -1,0 +1,35 @@
+name: Headless tests
+
+# Compiles every assembly and runs the EditMode suite without a Unity licence. See
+# tools/headless/README.md for what this does and does not prove — it is a fast first
+# filter, not a substitute for a real Editor run.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "Assets/**"
+      - "tools/headless/**"
+      - ".github/workflows/headless-tests.yml"
+  pull_request:
+    paths:
+      - "Assets/**"
+      - "tools/headless/**"
+      - ".github/workflows/headless-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Mono and NUnit
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mono-mcs libnunit-framework2.6.3-cil
+
+      - name: Compile and run the EditMode suite
+        run: ./tools/headless/run.sh

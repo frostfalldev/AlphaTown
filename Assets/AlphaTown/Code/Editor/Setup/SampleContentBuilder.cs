@@ -71,16 +71,18 @@ namespace AlphaTown.EditorTools.Setup
             // Crops take no inputs — a field is a producer whose input list is empty, which is the
             // whole reason farming needed no system of its own.
             var growWheat = Recipe("grow_wheat", 60, unlockLevel: 1,
-                outputs: new[] { (wheat, 2) }, bonusOutputMax: 1);
+                outputs: new[] { new Ingredient(wheat, 2) }, bonusOutputMax: 1);
 
             var growCorn = Recipe("grow_corn", 180, unlockLevel: 2,
-                outputs: new[] { (corn, 2) }, bonusOutputMax: 2);
+                outputs: new[] { new Ingredient(corn, 2) }, bonusOutputMax: 2);
 
             var millFlour = Recipe("mill_flour", 120, unlockLevel: 1,
-                inputs: new[] { (wheat, 3) }, outputs: new[] { (flour, 1) });
+                inputs: new[] { new Ingredient(wheat, 3) },
+                outputs: new[] { new Ingredient(flour, 1) });
 
             var bakeBread = Recipe("bake_bread", 300, unlockLevel: 3,
-                inputs: new[] { (flour, 2), (corn, 1) }, outputs: new[] { (bread, 1) });
+                inputs: new[] { new Ingredient(flour, 2), new Ingredient(corn, 1) },
+                outputs: new[] { new Ingredient(bread, 1) });
 
             // --- Producers ---------------------------------------------------------------------
             // Level 2 is where auto-replant arrives: the field keeps sowing itself once the player
@@ -150,8 +152,12 @@ namespace AlphaTown.EditorTools.Setup
 
             // --- New game ----------------------------------------------------------------------
             var newGame = NewGame(barnLevel: 1,
-                items: new[] { (wheat, 4) },
-                buildings: new[] { (plot, 9, 9), (plot, 11, 9), (plot, 9, 11), (plot, 11, 11) });
+                items: new[] { new Ingredient(wheat, 4) },
+                buildings: new[]
+                {
+                    new StartingSpot(plot, 9, 9), new StartingSpot(plot, 11, 9),
+                    new StartingSpot(plot, 9, 11), new StartingSpot(plot, 11, 11)
+                });
 
             // --- Database ----------------------------------------------------------------------
             var database = AssetAuthoring.CreateOrLoad<GameDatabase>(Root + "/GameDatabase.asset");
@@ -212,8 +218,8 @@ namespace AlphaTown.EditorTools.Setup
         }
 
         static RecipeDefinition Recipe(string id, int durationSeconds, int unlockLevel,
-                                       (ItemDefinition item, int count)[] outputs,
-                                       (ItemDefinition item, int count)[] inputs = null,
+                                       Ingredient[] outputs,
+                                       Ingredient[] inputs = null,
                                        int bonusOutputMax = 0)
         {
             var asset = AssetAuthoring.CreateOrLoad<RecipeDefinition>(Root + "/Recipes/Recipe_" + id + ".asset");
@@ -227,6 +233,39 @@ namespace AlphaTown.EditorTools.Setup
             WriteItemAmounts(serialized, "_outputs", outputs);
             AssetAuthoring.Apply(serialized);
             return asset;
+        }
+
+        /// <summary>
+        /// An item and a quantity. A named struct rather than a tuple, matching
+        /// <see cref="ProducerTier"/> and <see cref="BuildingTier"/> below — and because arrays of
+        /// named tuples are one of the few C# 7 constructs Mono's compiler still mishandles, which
+        /// would put this file out of reach of the headless build in tools/headless.
+        /// </summary>
+        readonly struct Ingredient
+        {
+            public readonly ItemDefinition Item;
+            public readonly int Count;
+
+            public Ingredient(ItemDefinition item, int count)
+            {
+                Item = item;
+                Count = count;
+            }
+        }
+
+        /// <summary>A building and where it stands when a new town is seeded.</summary>
+        readonly struct StartingSpot
+        {
+            public readonly BuildingDefinition Building;
+            public readonly int X;
+            public readonly int Y;
+
+            public StartingSpot(BuildingDefinition building, int x, int y)
+            {
+                Building = building;
+                X = x;
+                Y = y;
+            }
         }
 
         readonly struct ProducerTier
@@ -389,7 +428,7 @@ namespace AlphaTown.EditorTools.Setup
             AssetAuthoring.Set(serialized, "_xpMultiplier", 1f);
             AssetAuthoring.Set(serialized, "_bonusHardCurrency", 0);
             AssetAuthoring.Set(serialized, "_bonusItemChance", 0.3f);
-            WriteItemAmounts(serialized, "_bonusItems", new[] { (deed, 1) });
+            WriteItemAmounts(serialized, "_bonusItems", new[] { new Ingredient(deed, 1) });
             AssetAuthoring.Apply(serialized);
             return asset;
         }
@@ -444,7 +483,7 @@ namespace AlphaTown.EditorTools.Setup
             AssetAuthoring.Set(serialized, "_unlockLevel", unlockLevel);
             AssetAuthoring.Set(serialized, "_sortOrder", sortOrder);
             AssetAuthoring.SetReference(serialized, "_requires", requires);
-            WriteItemAmounts(serialized, "_itemCost", new[] { (deed, deedCost) });
+            WriteItemAmounts(serialized, "_itemCost", new[] { new Ingredient(deed, deedCost) });
 
             AssetAuthoring.SetArray(serialized, "_currencyCost", 1, (element, _) =>
                 WriteCurrencyEntry(element, coins, coinCost));
@@ -453,8 +492,8 @@ namespace AlphaTown.EditorTools.Setup
             return asset;
         }
 
-        static NewGameDefinition NewGame(int barnLevel, (ItemDefinition item, int count)[] items,
-                                         (BuildingDefinition building, int x, int y)[] buildings)
+        static NewGameDefinition NewGame(int barnLevel, Ingredient[] items,
+                                         StartingSpot[] buildings)
         {
             var asset = AssetAuthoring.CreateOrLoad<NewGameDefinition>(Root + "/NewGame.asset");
             var serialized = AssetAuthoring.Edit(asset);
@@ -465,9 +504,9 @@ namespace AlphaTown.EditorTools.Setup
 
             AssetAuthoring.SetArray(serialized, "_startingBuildings", buildings.Length, (element, index) =>
             {
-                AssetAuthoring.SetElement(element, "_building", buildings[index].building);
-                AssetAuthoring.SetElement(element, "_x", buildings[index].x);
-                AssetAuthoring.SetElement(element, "_y", buildings[index].y);
+                AssetAuthoring.SetElement(element, "_building", buildings[index].Building);
+                AssetAuthoring.SetElement(element, "_x", buildings[index].X);
+                AssetAuthoring.SetElement(element, "_y", buildings[index].Y);
             });
 
             AssetAuthoring.Apply(serialized);
@@ -475,13 +514,13 @@ namespace AlphaTown.EditorTools.Setup
         }
 
         static void WriteItemAmounts(SerializedObject serialized, string field,
-                                     (ItemDefinition item, int count)[] amounts)
+                                     Ingredient[] amounts)
         {
             var count = amounts?.Length ?? 0;
             AssetAuthoring.SetArray(serialized, field, count, (element, index) =>
             {
-                AssetAuthoring.SetElement(element, "_item", amounts[index].item);
-                AssetAuthoring.SetElement(element, "_count", amounts[index].count);
+                AssetAuthoring.SetElement(element, "_item", amounts[index].Item);
+                AssetAuthoring.SetElement(element, "_count", amounts[index].Count);
             });
         }
 

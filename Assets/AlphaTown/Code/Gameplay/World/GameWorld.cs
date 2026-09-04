@@ -136,12 +136,32 @@ namespace AlphaTown.Gameplay.World
             var newGame = _database.NewGame;
             if (newGame != null)
             {
-                if (newGame.StartingBarnLevel > Barn.Level) Barn.SetLevel(newGame.StartingBarnLevel);
+                GrantStartingBarnLevel(newGame.StartingBarnLevel);
                 GrantStartingItems(newGame.StartingItems);
                 PlaceStartingBuildings(newGame.StartingBuildings);
             }
 
             Sync();
+        }
+
+        /// <summary>
+        /// Raises the barn to the level the new-game definition asks for.
+        ///
+        /// <see cref="BarnInventory.SetLevel"/> clamps to what the storage definition actually
+        /// offers, which is right for a save from a future build but wrong to pass over in
+        /// silence here: content asking for a level that does not exist is a mistake someone
+        /// should be told about, not a starting barn that is quietly smaller than intended.
+        /// </summary>
+        void GrantStartingBarnLevel(int level)
+        {
+            if (level <= Barn.Level) return;
+
+            Barn.SetLevel(level);
+            if (Barn.Level >= level) return;
+
+            Log.Error("World",
+                "New game asks for barn level " + level + " but the storage definition only goes to " +
+                Barn.Level + ". The player starts with a smaller barn than intended.");
         }
 
         void GrantStartingItems(IReadOnlyList<ItemStack> items)

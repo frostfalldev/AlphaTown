@@ -20,7 +20,7 @@ land, on the same headless simulation the tests exercise.
 - Server-verified time with retry and offline fallback, so timers survive a player editing their clock
 - A playable scene: isometric camera, tap to inspect, swipe-to-harvest, and a minimal HUD
 - Editor tooling that generates the project settings, the sample content **and the scene itself**
-- EditMode tests covering the simulation, with no scene required
+- 217 EditMode tests covering the simulation, runnable **without Unity** in ten seconds
 
 **The Unity project has not been created yet.** `Packages/` and `ProjectSettings/` are not in the
 repo; generating them needs Unity Hub and the Universal 3D template on a workstation.
@@ -44,6 +44,13 @@ For a device build, that whole chain plus the APK is one command:
 ./tools/build-android.sh --install
 ```
 
+To type-check everything and run the test suite **without Unity at all**:
+
+```bash
+sudo apt-get install -y mono-mcs libnunit-framework2.6.3-cil
+./tools/headless/run.sh
+```
+
 See [docs/VERTICAL_SLICE.md](docs/VERTICAL_SLICE.md).
 
 ## Documentation
@@ -60,6 +67,7 @@ See [docs/VERTICAL_SLICE.md](docs/VERTICAL_SLICE.md).
 | [docs/TIME_AND_ANTI_CHEAT.md](docs/TIME_AND_ANTI_CHEAT.md) | Threat model, trusted time, and what is still exposed |
 | [docs/PROJECT_SETTINGS.md](docs/PROJECT_SETTINGS.md) | Every player and quality setting, and why |
 | [docs/URP_MOBILE_PROFILE.md](docs/URP_MOBILE_PROFILE.md) | Every mobile rendering setting, and why |
+| [tools/headless/README.md](tools/headless/README.md) | Compiling and testing without a Unity licence |
 
 ## Layout
 
@@ -68,7 +76,7 @@ Assets/AlphaTown/   first-party content — Art, Audio, Code, Content, Prefabs, 
 Assets/Settings/    URP assets, renderers, volume profiles
 Assets/ThirdParty/  asset-store and vendor SDK imports, kept unmodified
 docs/               setup, architecture and settings documentation
-tools/              build scripts
+tools/              build scripts, and a headless compile + test harness
 ```
 
 Code is split into layered assemblies — `Core → Data → Services → Gameplay → UI` — so references

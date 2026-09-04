@@ -63,3 +63,7 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Headless verification build output
+tools/headless/stage/
+tools/headless/out/

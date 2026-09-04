@@ -114,7 +114,9 @@ namespace AlphaTown.Tests.EditMode
                 .WithItem(new FakeItem(Cake, coinValue: 50, xpValue: 10))
                 .WithRecipe(breadRecipe)
                 .WithRecipe(cakeRecipe)
-                .WithStorage(new FakeStorage(barnCapacity))
+                // Two levels, so a test can exercise a barn upgrade. Level 1 keeps the requested
+                // capacity, so every test that only cares about the starting barn is unaffected.
+                .WithStorage(new FakeStorage(barnCapacity, barnCapacity * 2))
                 .WithCurrency(new FakeCurrency(Coins, CurrencyKind.Soft, startingCoins))
                 .WithCurrency(new FakeCurrency(Gems, CurrencyKind.Hard, startingGems))
                 .WithProgressionCurve(new FakeProgressionCurve(xpCurve ?? DefaultXpCurve))

@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using AlphaTown.Core.Events;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Items;
@@ -9,6 +10,8 @@ using AlphaTown.Gameplay.World;
 using AlphaTown.Services.Save;
 using AlphaTown.Services.Timing;
 using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace AlphaTown.Tests.EditMode
 {
@@ -113,6 +116,10 @@ namespace AlphaTown.Tests.EditMode
 
             var world = CreateWorld();
             future.TrySave(GameWorld.DefaultSaveSlot, world.CaptureSave());
+
+            // Refusing is the point, and refusing loudly is part of it — so the error is expected
+            // rather than incidental. Without this the test fails on its own success.
+            LogAssert.Expect(LogType.Error, new Regex("Refusing to load"));
 
             Assert.That(current.TryLoad<GameSaveData>(GameWorld.DefaultSaveSlot, out var data), Is.False);
             Assert.That(data, Is.Null);

@@ -467,6 +467,21 @@ for the same reason.
 No scene, no assets, no play mode. If a new gameplay system cannot be tested that way, it has a
 dependency it should not have.
 
+### Running them without Unity
+
+```bash
+./tools/headless/run.sh
+```
+
+Compiles all six assemblies and runs the whole suite in about ten seconds, with no Unity licence,
+using hand-written shims for the `UnityEngine` and `UnityEditor` surface the project touches. It
+also enforces the layering — each assembly is compiled separately against only the ones beneath it
+— and Unity's rule that an unexpected `Debug.LogError` fails a test.
+
+It is a fast first filter, **not** a substitute for the Editor: the shims are approximations, and
+nothing renders, is a scene, or is serialized by Unity. [tools/headless/README.md](../tools/headless/README.md)
+is explicit about where the line is. Green here is evidence the Unity build is green, not proof.
+
 ## Conventions
 
 - Simulation code is plain C#. MonoBehaviours are for scene glue only.

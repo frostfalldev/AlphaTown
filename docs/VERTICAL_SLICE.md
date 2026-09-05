@@ -27,8 +27,30 @@ That runs, in dependency order:
 | `MainSceneBuilder` | `Assets/AlphaTown/Scenes/Town.unity`, wired to the database |
 
 Then open `Town.unity` and press Play. The two content steps also have their own menu entries
-under **AlphaTown ▸ Content** and can be re-run independently; both update assets in place, so ids
-already written into a save stay valid.
+under **AlphaTown ▸ Content** and can be re-run independently.
+
+### Hand-authoring content
+
+**The content builder never overwrites an asset that already exists.** Once you have opened
+`Building_bakery.asset` and tuned it, it is yours; re-running the generator — or the whole
+**Build Playable Project** chain — writes only what is missing and reports how many it left alone.
+
+That makes it safe to run whenever, and useful as a way to fill gaps rather than something to be
+careful around.
+
+Two consequences worth knowing:
+
+- **The `GameDatabase` is the exception, and it merges.** It is an index, not content: skipping it
+  would leave a newly created definition on disk that the game cannot see. Anything already listed
+  stays listed in its existing order, and only what is missing is appended — so a building you add
+  by hand survives, and a generated one you deleted comes back. The well-known slots
+  (`_softCurrency`, `_defaultStorage`, and so on) are filled only when empty, so pointing one
+  somewhere else sticks.
+- **To reset to the shipped defaults**, use **AlphaTown ▸ Content ▸ Rebuild Sample Content
+  (overwrite)**. It asks first, because it is the one entry point that can lose work. Assets you
+  created yourself are still not touched — it only rewrites the ones this generator authors.
+
+Either way ids are never regenerated for an existing asset, so a save file's references stay valid.
 
 ### Straight to an APK
 

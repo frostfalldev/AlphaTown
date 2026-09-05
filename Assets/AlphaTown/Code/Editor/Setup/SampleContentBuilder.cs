@@ -24,7 +24,13 @@ namespace AlphaTown.EditorTools.Setup
     /// minutes of play, not a balance pass: crops finish in a minute rather than four hours, and
     /// the first order is affordable almost immediately.
     ///
-    /// Re-running updates the same assets in place, so the ids in a save stay valid.
+    /// <b>An asset that already exists is left alone.</b> Once a designer has opened one of these
+    /// and tuned it, it is theirs, and a build script silently reverting that tuning is how people
+    /// learn not to trust the tooling. Only what is missing gets written, so the generator becomes
+    /// a way to fill gaps rather than a thing to be afraid of. Use the overwrite entry point to
+    /// deliberately reset to the shipped defaults.
+    ///
+    /// Ids are never regenerated for an existing asset, so a save file's references stay valid.
     ///
     /// TODO(content): replace wholesale once real crops, buildings and art exist. Nothing in code
     /// depends on these ids — the database is the only thing that names them.
@@ -33,9 +39,45 @@ namespace AlphaTown.EditorTools.Setup
     {
         const string Root = "Assets/AlphaTown/Content";
 
+        /// <summary>
+        /// Set for the duration of one run. Editor-only and single-threaded, so a static is
+        /// honest here and saves threading a flag through every builder below.
+        /// </summary>
+        static bool _overwriteExisting;
+
+        static int _written;
+        static int _skipped;
+
         [MenuItem("AlphaTown/Content/Build Sample Content", false, 20)]
-        internal static void Build()
+        internal static void Build() => Run(overwriteExisting: false);
+
+        /// <summary>
+        /// Resets every sample asset to the values in this file, discarding hand-authored changes.
+        /// Behind a confirmation because it is the one entry point that can lose work.
+        /// </summary>
+        [MenuItem("AlphaTown/Content/Rebuild Sample Content (overwrite)", false, 22)]
+        internal static void Rebuild()
         {
+            if (!Application.isBatchMode &&
+                !EditorUtility.DisplayDialog(
+                    "AlphaTown — Rebuild Sample Content",
+                    "This resets every generated asset under " + Root + " to the values in " +
+                    "SampleContentBuilder.cs.\n\nAny tuning done in the Inspector will be lost.\n\n" +
+                    "Assets you created yourself are not touched.",
+                    "Overwrite", "Cancel"))
+            {
+                return;
+            }
+
+            Run(overwriteExisting: true);
+        }
+
+        static void Run(bool overwriteExisting)
+        {
+            _overwriteExisting = overwriteExisting;
+            _written = 0;
+            _skipped = 0;
+
             AssetDatabase.StartAssetEditing();
             try
             {
@@ -46,9 +88,37 @@ namespace AlphaTown.EditorTools.Setup
                 AssetDatabase.StopAssetEditing();
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
+                _overwriteExisting = false;
             }
 
-            Debug.Log("[AlphaTown] Sample content written to " + Root + ".");
+            Debug.Log("[AlphaTown] Sample content: " + _written + " asset(s) written, " +
+                      _skipped + " left alone, under " + Root + "." +
+                      (_skipped > 0
+                          ? "\n  Existing assets are never overwritten. Use AlphaTown ▸ Content ▸ " +
+                            "Rebuild Sample Content (overwrite) to reset them to the shipped defaults."
+                          : string.Empty));
+        }
+
+        /// <summary>
+        /// Opens an asset for writing, creating it if missing.
+        ///
+        /// Returns null when the asset already existed and is being left alone — every builder
+        /// below returns early on null, which is what keeps the skip logic in one place instead of
+        /// repeated fifteen times.
+        /// </summary>
+        static SerializedObject BeginAuthoring<TAsset>(string path, out TAsset asset)
+            where TAsset : ScriptableObject
+        {
+            asset = AssetAuthoring.CreateOrLoad<TAsset>(path, out var created);
+
+            if (!created && !_overwriteExisting)
+            {
+                _skipped++;
+                return null;
+            }
+
+            _written++;
+            return AssetAuthoring.Edit(asset);
         }
 
         static void Generate()
@@ -160,36 +230,58 @@ namespace AlphaTown.EditorTools.Setup
                 });
 
             // --- Database ----------------------------------------------------------------------
+            // The one asset that is never skipped. It is an index, not content: skipping it would
+            // leave a freshly created definition sitting on disk that the game cannot see, which
+            // looks exactly like the generator not having run at all.
+            //
+            // So it merges instead. Anything already listed stays listed, in its existing order,
+            // and only what is missing is appended — a building added by hand survives, and a
+            // generated one that was deleted comes back.
             var database = AssetAuthoring.CreateOrLoad<GameDatabase>(Root + "/GameDatabase.asset");
             var serialized = AssetAuthoring.Edit(database);
 
-            AssetAuthoring.SetReferenceArray(serialized, "_items", new Object[] { wheat, corn, flour, bread, deed });
-            AssetAuthoring.SetReferenceArray(serialized, "_recipes",
-                new Object[] { growWheat, growCorn, millFlour, bakeBread });
-            AssetAuthoring.SetReferenceArray(serialized, "_producers", new Object[] { field, mill, bakery });
-            AssetAuthoring.SetReferenceArray(serialized, "_storages", new Object[] { barn });
-            AssetAuthoring.SetReferenceArray(serialized, "_currencies", new Object[] { coins, gems });
-            AssetAuthoring.SetReferenceArray(serialized, "_orderTemplates", new Object[] { template });
-            AssetAuthoring.SetReferenceArray(serialized, "_buildings",
-                new Object[] { plot, millBuilding, bakeryBuilding });
-            AssetAuthoring.SetReferenceArray(serialized, "_orderBoards", new Object[] { board });
-            AssetAuthoring.SetReferenceArray(serialized, "_expansions", new Object[] { north, east, northEast });
+            Register(serialized, "_items", new Object[] { wheat, corn, flour, bread, deed });
+            Register(serialized, "_recipes", new Object[] { growWheat, growCorn, millFlour, bakeBread });
+            Register(serialized, "_producers", new Object[] { field, mill, bakery });
+            Register(serialized, "_storages", new Object[] { barn });
+            Register(serialized, "_currencies", new Object[] { coins, gems });
+            Register(serialized, "_orderTemplates", new Object[] { template });
+            Register(serialized, "_buildings", new Object[] { plot, millBuilding, bakeryBuilding });
+            Register(serialized, "_orderBoards", new Object[] { board });
+            Register(serialized, "_expansions", new Object[] { north, east, northEast });
 
-            AssetAuthoring.SetReference(serialized, "_defaultStorage", barn);
-            AssetAuthoring.SetReference(serialized, "_softCurrency", coins);
-            AssetAuthoring.SetReference(serialized, "_hardCurrency", gems);
-            AssetAuthoring.SetReference(serialized, "_progressionCurve", curve);
-            AssetAuthoring.SetReference(serialized, "_townDefinition", town);
-            AssetAuthoring.SetReference(serialized, "_newGame", newGame);
+            // The well-known slots name which of the above the game reaches for by default. An
+            // author who has pointed one somewhere else has made a decision; filling only the
+            // empty ones respects it while still healing a slot nothing occupies.
+            Nominate(serialized, "_defaultStorage", barn);
+            Nominate(serialized, "_softCurrency", coins);
+            Nominate(serialized, "_hardCurrency", gems);
+            Nominate(serialized, "_progressionCurve", curve);
+            Nominate(serialized, "_townDefinition", town);
+            Nominate(serialized, "_newGame", newGame);
             AssetAuthoring.Apply(serialized);
+        }
+
+        static void Register(SerializedObject serialized, string field, Object[] entries)
+        {
+            if (_overwriteExisting) AssetAuthoring.SetReferenceArray(serialized, field, entries);
+            else AssetAuthoring.MergeReferenceArray(serialized, field, entries);
+        }
+
+        static void Nominate(SerializedObject serialized, string field, Object value)
+        {
+            if (_overwriteExisting) AssetAuthoring.SetReference(serialized, field, value);
+            else AssetAuthoring.SetReferenceIfEmpty(serialized, field, value);
         }
 
         // --- Builders ---------------------------------------------------------------------------
 
         static CurrencyDefinition Currency(string id, CurrencyKind kind, int startingAmount)
         {
-            var asset = AssetAuthoring.CreateOrLoad<CurrencyDefinition>(Root + "/Economy/Currency_" + id + ".asset");
-            var serialized = AssetAuthoring.Edit(asset);
+            var serialized = BeginAuthoring<CurrencyDefinition>(
+                Root + "/Economy/Currency_" + id + ".asset", out var asset);
+
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.Set(serialized, "_displayNameKey", "currency." + id);
@@ -203,8 +295,8 @@ namespace AlphaTown.EditorTools.Setup
                                    bool storable = true)
         {
             var folder = category == ItemCategory.Crop ? "/Crops/Item_" : "/Goods/Item_";
-            var asset = AssetAuthoring.CreateOrLoad<ItemDefinition>(Root + folder + id + ".asset");
-            var serialized = AssetAuthoring.Edit(asset);
+            var serialized = BeginAuthoring<ItemDefinition>(Root + folder + id + ".asset", out var asset);
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.Set(serialized, "_displayNameKey", "item." + id);
@@ -222,8 +314,10 @@ namespace AlphaTown.EditorTools.Setup
                                        Ingredient[] inputs = null,
                                        int bonusOutputMax = 0)
         {
-            var asset = AssetAuthoring.CreateOrLoad<RecipeDefinition>(Root + "/Recipes/Recipe_" + id + ".asset");
-            var serialized = AssetAuthoring.Edit(asset);
+            var serialized = BeginAuthoring<RecipeDefinition>(
+                Root + "/Recipes/Recipe_" + id + ".asset", out var asset);
+
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.Set(serialized, "_durationSeconds", durationSeconds);
@@ -286,10 +380,10 @@ namespace AlphaTown.EditorTools.Setup
 
         static ProducerDefinition Producer(string id, RecipeDefinition[] recipes, ProducerTier[] tiers)
         {
-            var asset = AssetAuthoring.CreateOrLoad<ProducerDefinition>(
-                Root + "/Recipes/Producer_" + id + ".asset");
+            var serialized = BeginAuthoring<ProducerDefinition>(
+                Root + "/Recipes/Producer_" + id + ".asset", out var asset);
 
-            var serialized = AssetAuthoring.Edit(asset);
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.Set(serialized, "_displayNameKey", "producer." + id);
@@ -309,8 +403,10 @@ namespace AlphaTown.EditorTools.Setup
 
         static StorageDefinition Storage(string id, int[] capacityPerLevel)
         {
-            var asset = AssetAuthoring.CreateOrLoad<StorageDefinition>(Root + "/Economy/Storage_" + id + ".asset");
-            var serialized = AssetAuthoring.Edit(asset);
+            var serialized = BeginAuthoring<StorageDefinition>(
+                Root + "/Economy/Storage_" + id + ".asset", out var asset);
+
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.SetIntArray(serialized, "_capacityPerLevel", capacityPerLevel);
@@ -324,11 +420,12 @@ namespace AlphaTown.EditorTools.Setup
         /// </summary>
         static ProgressionCurve Curve(CurrencyDefinition coins, CurrencyDefinition gems)
         {
-            var asset = AssetAuthoring.CreateOrLoad<ProgressionCurve>(
-                Root + "/Progression/ProgressionCurve.asset");
+            var serialized = BeginAuthoring<ProgressionCurve>(
+                Root + "/Progression/ProgressionCurve.asset", out var asset);
+
+            if (serialized == null) return asset;
 
             var thresholds = new[] { 60, 150, 320, 620, 1100, 1900, 3200, 5000 };
-            var serialized = AssetAuthoring.Edit(asset);
 
             AssetAuthoring.Set(serialized, "_id", "progression");
             AssetAuthoring.SetArray(serialized, "_levels", thresholds.Length, (element, index) =>
@@ -372,10 +469,10 @@ namespace AlphaTown.EditorTools.Setup
                                            ProducerDefinition producer, int unlockLevel,
                                            BuildingTier[] tiers, Color placeholder)
         {
-            var asset = AssetAuthoring.CreateOrLoad<BuildingDefinition>(
-                Root + "/Buildings/Building_" + id + ".asset");
+            var serialized = BeginAuthoring<BuildingDefinition>(
+                Root + "/Buildings/Building_" + id + ".asset", out var asset);
 
-            var serialized = AssetAuthoring.Edit(asset);
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.Set(serialized, "_displayNameKey", "building." + id);
@@ -408,10 +505,10 @@ namespace AlphaTown.EditorTools.Setup
         /// </summary>
         static OrderTemplateDefinition OrderTemplate(string id, ItemDefinition deed)
         {
-            var asset = AssetAuthoring.CreateOrLoad<OrderTemplateDefinition>(
-                Root + "/Orders/OrderTemplate_" + id + ".asset");
+            var serialized = BeginAuthoring<OrderTemplateDefinition>(
+                Root + "/Orders/OrderTemplate_" + id + ".asset", out var asset);
 
-            var serialized = AssetAuthoring.Edit(asset);
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.SetEnum(serialized, "_kind", (int)OrderKind.Helicopter);
@@ -435,10 +532,10 @@ namespace AlphaTown.EditorTools.Setup
 
         static OrderBoardDefinition OrderBoard(string id, int[] slotCooldownSeconds)
         {
-            var asset = AssetAuthoring.CreateOrLoad<OrderBoardDefinition>(
-                Root + "/Orders/OrderBoard_" + id + ".asset");
+            var serialized = BeginAuthoring<OrderBoardDefinition>(
+                Root + "/Orders/OrderBoard_" + id + ".asset", out var asset);
 
-            var serialized = AssetAuthoring.Edit(asset);
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.SetEnum(serialized, "_kind", (int)OrderKind.Helicopter);
@@ -450,8 +547,8 @@ namespace AlphaTown.EditorTools.Setup
         static TownDefinition Town(int width, int height, int startX, int startY,
                                    int startWidth, int startHeight)
         {
-            var asset = AssetAuthoring.CreateOrLoad<TownDefinition>(Root + "/TownDefinition.asset");
-            var serialized = AssetAuthoring.Edit(asset);
+            var serialized = BeginAuthoring<TownDefinition>(Root + "/TownDefinition.asset", out var asset);
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", "town");
             AssetAuthoring.Set(serialized, "_width", width);
@@ -469,10 +566,10 @@ namespace AlphaTown.EditorTools.Setup
                                              CurrencyDefinition coins, int coinCost,
                                              ExpansionDefinition requires, int unlockLevel, int sortOrder)
         {
-            var asset = AssetAuthoring.CreateOrLoad<ExpansionDefinition>(
-                Root + "/Buildings/Expansion_" + id + ".asset");
+            var serialized = BeginAuthoring<ExpansionDefinition>(
+                Root + "/Buildings/Expansion_" + id + ".asset", out var asset);
 
-            var serialized = AssetAuthoring.Edit(asset);
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.Set(serialized, "_displayNameKey", "land." + id);
@@ -495,8 +592,8 @@ namespace AlphaTown.EditorTools.Setup
         static NewGameDefinition NewGame(int barnLevel, Ingredient[] items,
                                          StartingSpot[] buildings)
         {
-            var asset = AssetAuthoring.CreateOrLoad<NewGameDefinition>(Root + "/NewGame.asset");
-            var serialized = AssetAuthoring.Edit(asset);
+            var serialized = BeginAuthoring<NewGameDefinition>(Root + "/NewGame.asset", out var asset);
+            if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", "new_game");
             AssetAuthoring.Set(serialized, "_startingBarnLevel", barnLevel);

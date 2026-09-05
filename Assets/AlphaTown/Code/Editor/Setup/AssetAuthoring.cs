@@ -30,18 +30,36 @@ namespace AlphaTown.EditorTools.Setup
         }
 
         /// <summary>
-        /// Loads the asset at <paramref name="path"/> or creates it. Re-running the builder
-        /// therefore updates content in place rather than orphaning every reference to it.
+        /// Loads the asset at <paramref name="path"/> or creates it. Loading rather than replacing
+        /// means re-running a builder keeps every reference to the asset intact — and, crucially,
+        /// keeps the id a save file has already written.
         /// </summary>
-        internal static TAsset CreateOrLoad<TAsset>(string path) where TAsset : ScriptableObject
+        internal static TAsset CreateOrLoad<TAsset>(string path) where TAsset : ScriptableObject =>
+            CreateOrLoad<TAsset>(path, out _);
+
+        /// <summary>
+        /// As above, reporting whether the asset had to be created.
+        ///
+        /// <paramref name="created"/> is what lets a generator leave hand-authored content alone:
+        /// an asset that was already on disk has an author, and overwriting their tuning because a
+        /// build script ran is the kind of loss that stops people trusting the tooling.
+        /// </summary>
+        internal static TAsset CreateOrLoad<TAsset>(string path, out bool created)
+            where TAsset : ScriptableObject
         {
             var existing = AssetDatabase.LoadAssetAtPath<TAsset>(path);
-            if (existing != null) return existing;
+            if (existing != null)
+            {
+                created = false;
+                return existing;
+            }
 
-            var created = ScriptableObject.CreateInstance<TAsset>();
+            var asset = ScriptableObject.CreateInstance<TAsset>();
             EnsureFolder(Path.GetDirectoryName(path)?.Replace('\\', '/'));
-            AssetDatabase.CreateAsset(created, path);
-            return created;
+            AssetDatabase.CreateAsset(asset, path);
+
+            created = true;
+            return asset;
         }
 
         internal static SerializedObject Edit(Object asset) => new SerializedObject(asset);
@@ -87,6 +105,44 @@ namespace AlphaTown.EditorTools.Setup
                 for (var i = 0; i < values.Length; i++)
                 {
                     property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+                }
+            });
+        }
+
+        /// <summary>Writes only when the field is currently empty, so an author's choice stands.</summary>
+        internal static void SetReferenceIfEmpty(SerializedObject serialized, string field, Object value)
+        {
+            With(serialized, field, property =>
+            {
+                if (property.objectReferenceValue == null) property.objectReferenceValue = value;
+            });
+        }
+
+        /// <summary>
+        /// Appends whatever is missing, keeping everything already in the list and its order.
+        ///
+        /// This is how a generated catalogue coexists with hand-authored content: a building
+        /// somebody added by hand survives the next run, and a generated one that was deleted
+        /// comes back, without either having to know about the other.
+        /// </summary>
+        internal static void MergeReferenceArray(SerializedObject serialized, string field, Object[] additions)
+        {
+            With(serialized, field, property =>
+            {
+                for (var a = 0; a < additions.Length; a++)
+                {
+                    if (additions[a] == null) continue;
+
+                    var present = false;
+                    for (var i = 0; i < property.arraySize && !present; i++)
+                    {
+                        present = property.GetArrayElementAtIndex(i).objectReferenceValue == additions[a];
+                    }
+
+                    if (present) continue;
+
+                    property.arraySize++;
+                    property.GetArrayElementAtIndex(property.arraySize - 1).objectReferenceValue = additions[a];
                 }
             });
         }

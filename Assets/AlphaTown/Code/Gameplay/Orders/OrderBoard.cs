@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using AlphaTown.Core.Diagnostics;
 using AlphaTown.Core.Events;
 using AlphaTown.Core.Timing;
+using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Economy;
 using AlphaTown.Data.Orders;
 using AlphaTown.Data.Progression;
@@ -36,6 +38,7 @@ namespace AlphaTown.Gameplay.Orders
         }
 
         readonly IOrderBoardDefinition _definition;
+        readonly IGameDatabase _database;
         readonly IGameClock _clock;
         readonly IEventBus _events;
         readonly ITownProgression _progression;
@@ -49,6 +52,7 @@ namespace AlphaTown.Gameplay.Orders
 
         public OrderBoard(
             IOrderBoardDefinition definition,
+            IGameDatabase database,
             IGameClock clock,
             IEventBus events,
             ITownProgression progression,
@@ -57,6 +61,7 @@ namespace AlphaTown.Gameplay.Orders
             OrderGenerator generator)
         {
             _definition = Guard.NotNull(definition, nameof(definition));
+            _database = Guard.NotNull(database, nameof(database));
             _clock = Guard.NotNull(clock, nameof(clock));
             _events = Guard.NotNull(events, nameof(events));
             _progression = Guard.NotNull(progression, nameof(progression));
@@ -160,8 +165,7 @@ namespace AlphaTown.Gameplay.Orders
         /// Drops an order. The slot cools like any other, which is what stops rerolling from being
         /// a free way to fish for a better payout.
         ///
-        /// TODO: a paid reroll charging <see cref="CurrencySink.OrderReroll"/> should skip the
-        /// cooldown — that is what the player would be buying.
+        /// A paid reroll skips that cooldown — see <see cref="TryReroll"/>.
         /// </summary>
         public bool TryDiscard(string orderId)
         {
@@ -170,6 +174,71 @@ namespace AlphaTown.Gameplay.Orders
 
             VacateSlot(index, _clock.UtcNowTicks);
             Sync();
+            return true;
+        }
+
+        /// <summary>
+        /// What buying out of this order would cost, or zero if it is not on the board.
+        ///
+        /// Public so a screen can put the price on the button. The answer to "is this worth it?"
+        /// should be visible before the tap, not after it.
+        /// </summary>
+        public int RerollCost(string orderId)
+        {
+            if (!TryGetOrder(orderId, out var order)) return 0;
+
+            var currency = _database.SoftCurrency;
+            if (currency == null) return 0;
+
+            var reward = 0;
+            var rewards = order.CurrencyRewards;
+            for (var i = 0; i < rewards.Count; i++)
+            {
+                if (rewards[i].CurrencyId == currency.Id) reward += rewards[i].Amount;
+            }
+
+            var scaled = reward * _definition.RerollCostPercent / 100;
+            var floor = _definition.RerollBaseCost;
+            return scaled > floor ? scaled : floor;
+        }
+
+        /// <summary>
+        /// Pays to replace an order with a fresh one, right now.
+        ///
+        /// What the coins buy is the slot cooldown. Discarding for free already exists and leaves
+        /// the slot cooling like any other, so the only thing left to sell is the wait — which is
+        /// also why this can never distort the goods economy: it moves no items, it only changes
+        /// which order is on offer.
+        /// </summary>
+        public bool TryReroll(string orderId)
+        {
+            var index = IndexOfSlot(orderId);
+            if (index < 0) return false;
+
+            var currency = _database.SoftCurrency;
+            if (currency == null)
+            {
+                Log.Error("Orders", "No soft currency is configured, so orders cannot be rerolled.");
+                return false;
+            }
+
+            var cost = RerollCost(orderId);
+            if (!_wallet.TrySpend(currency.Id, cost, CurrencySink.OrderReroll, orderId)) return false;
+
+            VacateSlot(index, _clock.UtcNowTicks, skipCooldown: true);
+            Sync();
+
+            // Generation draws from unlocked recipes, and the order just removed proves that pool
+            // is not empty — so this should be unreachable. If content changed underneath us, the
+            // player is not left having paid for an empty slot.
+            if (_slots[index].Order == null)
+            {
+                Log.Error("Orders", "Reroll produced no replacement order. Refunding " + cost + ".");
+                _wallet.Grant(currency.Id, cost, CurrencySource.Refund, orderId);
+                return false;
+            }
+
+            _events.Publish(new OrderRerolledEvent(orderId, index, cost));
             return true;
         }
 
@@ -224,13 +293,13 @@ namespace AlphaTown.Gameplay.Orders
         }
 
         /// <summary>Empties the slot and starts its cooldown.</summary>
-        void VacateSlot(int index, long nowTicks)
+        void VacateSlot(int index, long nowTicks, bool skipCooldown = false)
         {
             var slot = _slots[index];
             if (slot.Order != null) _active.Remove(slot.Order);
             slot.Order = null;
 
-            var cooldown = _definition.CooldownForSlot(index);
+            var cooldown = skipCooldown ? TimeSpan.Zero : _definition.CooldownForSlot(index);
             if (cooldown.Ticks <= 0)
             {
                 slot.NextAvailableAtTicks = 0;

@@ -24,5 +24,21 @@ namespace AlphaTown.Data.Orders
         /// have a fast first slot and slower later ones. Zero refills immediately.
         /// </summary>
         TimeSpan CooldownForSlot(int slotIndex);
+
+        /// <summary>
+        /// Least a reroll can cost, whatever the order was worth. Zero makes rerolling free,
+        /// which turns the board into a slot machine the player pulls until it pays.
+        /// </summary>
+        int RerollBaseCost { get; }
+
+        /// <summary>
+        /// Reroll price as a percentage of the coins the order would have paid, floored by
+        /// <see cref="RerollBaseCost"/>.
+        ///
+        /// Priced against the reward rather than flat, because that is what the player is
+        /// actually giving up. Dodging a lucrative order they cannot fill should cost more than
+        /// clearing a trivial one.
+        /// </summary>
+        int RerollCostPercent { get; }
     }
 }

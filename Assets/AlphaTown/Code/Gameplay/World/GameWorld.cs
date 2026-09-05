@@ -88,7 +88,7 @@ namespace AlphaTown.Gameplay.World
                                   ?? new FallbackOrderBoardDefinition(OrderKind.Helicopter);
 
             HelicopterOrders = new OrderBoard(
-                boardDefinition, clock, events, progression, Barn, wallet, generator);
+                boardDefinition, database, clock, events, progression, Barn, wallet, generator);
 
             var town = database.TownDefinition;
             var gridSize = town != null && town.Size.IsValid ? town.Size : DefaultTownSize;

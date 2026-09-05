@@ -220,6 +220,9 @@ namespace AlphaTown.Tests.EditMode
         public OrderKind Kind { get; }
         public int SlotCount => _cooldownSeconds.Length;
 
+        public int RerollBaseCost { get; set; } = TestContent.RerollBaseCost;
+        public int RerollCostPercent { get; set; } = TestContent.RerollCostPercent;
+
         public TimeSpan CooldownForSlot(int slotIndex)
         {
             if (slotIndex < 0 || slotIndex >= _cooldownSeconds.Length) return TimeSpan.Zero;

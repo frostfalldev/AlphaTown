@@ -641,6 +641,11 @@ namespace AlphaTown.EditorTools.Setup
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.SetEnum(serialized, "_kind", (int)OrderKind.Helicopter);
             AssetAuthoring.SetIntArray(serialized, "_slotCooldownSeconds", slotCooldownSeconds);
+
+            // A reroll buys the slot's cooldown. Priced against what the order would have paid,
+            // with a floor so clearing a worthless order still costs something.
+            AssetAuthoring.Set(serialized, "_rerollBaseCost", 40);
+            AssetAuthoring.Set(serialized, "_rerollCostPercent", 45);
             AssetAuthoring.Apply(serialized);
             return asset;
         }

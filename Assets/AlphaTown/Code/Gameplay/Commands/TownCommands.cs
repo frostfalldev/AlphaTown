@@ -165,6 +165,27 @@ namespace AlphaTown.Gameplay.Commands
                 : CommandResult.Fail("Could not deliver that.");
         }
 
+        /// <summary>
+        /// Pays to replace an order with a fresh one.
+        ///
+        /// The coins buy the slot's cooldown, which is the only thing here worth selling — a
+        /// reroll moves no goods, so however often it is used it cannot bend the production
+        /// economy the way a discounted purchase could.
+        /// </summary>
+        public CommandResult Reroll(string orderId)
+        {
+            if (!_world.HelicopterOrders.TryGetOrder(orderId, out _))
+                return CommandResult.Fail("That order is gone.");
+
+            var cost = _world.HelicopterOrders.RerollCost(orderId);
+            if (!_world.Wallet.CanAfford(SoftCurrencyId, cost))
+                return CommandResult.Fail("Rerolling costs " + cost + ".");
+
+            return _world.HelicopterOrders.TryReroll(orderId)
+                ? CommandResult.Ok("New order in.")
+                : CommandResult.Fail("Could not reroll that.");
+        }
+
         // --- Market -----------------------------------------------------------------------------
 
         /// <summary>

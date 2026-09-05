@@ -43,9 +43,11 @@ pattern = re.compile(r'(?<![\w.])(\d[\d_]*\d)(?=[LlFfDdUuMm]?\b)')
 # rewrites are exact API equivalents, not weakened assertions:
 #   Is.Zero              == Is.EqualTo(0)
 #   Does.Not.Contain(x)  == Has.No.Member(x)   (both mean "collection lacks this element")
+#   Does.Contain(s)      == Is.StringContaining(s)  (on a string; obsolete in 3.x, present in 2.6)
 nunit3 = [
     (re.compile(r'\bIs\.Zero\b'), 'Is.EqualTo(0)'),
     (re.compile(r'\bDoes\.Not\.Contain\b'), 'Has.No.Member'),
+    (re.compile(r'\bDoes\.Contain\b'), 'Is.StringContaining'),
 ]
 
 changed = 0

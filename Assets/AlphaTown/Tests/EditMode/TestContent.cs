@@ -74,6 +74,10 @@ namespace AlphaTown.Tests.EditMode
         /// <summary>Every helicopter slot cools for ten minutes after its order clears.</summary>
         public const int OrderSlotCooldownSeconds = 600;
 
+        /// <summary>Round numbers so a reroll price can be asserted by hand.</summary>
+        public const int RerollBaseCost = 10;
+        public const int RerollCostPercent = 50;
+
         // Expansion. Added only when Build is asked for it, so every other test keeps a town
         // that is unlocked end to end.
         public const string Deed = "land_deed";

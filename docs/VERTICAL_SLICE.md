@@ -128,6 +128,7 @@ stays fully navigable and there is no way to get stranded in the mode.
 | Upgrade | Tap a building ▸ **Upgrade** (shows its cost, greys out when unaffordable) |
 | Deliver an order | **Orders** ▸ **Deliver** |
 | Fill a gap in an order | **Orders** ▸ **Buy n** on a line you are short of — at a loss |
+| Replace a bad order | **Orders** ▸ **Reroll** — pays to skip the slot's cooldown |
 | Check storage, and sell | **Barn** — each good shows what it fetches; sell one or the lot |
 
 Saving happens on every successful action (debounced two seconds), on the auto-save timer, on
@@ -192,10 +193,9 @@ clear, so the town stays draggable with one thumb.
 4. **Nothing is celebrated.** A level-up, a completed delivery and a failed tap all produce the
    same small grey toast. The three biggest moments in the loop are indistinguishable from an error
    message.
-5. **Buying is the only decision coins carry between buildings.** It works, and it is correctly
-   a bad deal, which means most sessions will never use it. The pile of coins between one building
-   and the next still has nothing to do — decorations help, but they are a one-off purchase, not a
-   recurring choice.
+5. **Coins have somewhere to go every few minutes now** — rerolling a bad order — but the board is
+   only four slots, so the decision arrives at the board's pace rather than the player's. Someone
+   sitting on ten thousand coins still has nothing to do with them quickly.
 6. **Nothing is priced in gems.** The hard currency is decoration: no speed-ups, no purchases.
    The one thing a player wants while a timer runs does not exist.
 7. **The map is bigger than the game.** A 24×24 town with three unlockable parcels around a used
@@ -216,9 +216,9 @@ Roughly in order of value per hour spent:
    `TrySpeedUp` already exist; they need a price and a button.
 5. **Harvest All**, driven by `TownCommands.CollectHarvestable`, for when the town outgrows a
    comfortable swipe.
-6. **A recurring coin decision** — a daily deal, a limited stock, or boosts that expire. Buildings
-   and land are one-off purchases and the market is deliberately a bad deal, so between them
-   coins still accumulate without a choice attached.
+6. **Something to want at scale.** Rerolling drains coins a few dozen at a time. A player who has
+   banked thousands needs a purchase sized for that — a second order board, a bigger town, or
+   buildings that keep costing to run.
 7. **Named order customers**, even as placeholder portraits and three lines of flavour text.
 8. **Shrink the map, or seed more of it.** Either start on a smaller grid or place decorations and
    obstacles in the locked parcels so unlocking one reveals something.

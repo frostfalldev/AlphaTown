@@ -29,5 +29,10 @@ namespace AlphaTown.Gameplay.Orders
         public TimeSpan Cooldown { get; }
 
         public TimeSpan CooldownForSlot(int slotIndex) => Cooldown;
+
+        // Non-zero for the same reason the cooldown is: a project that has not tuned its pacing
+        // should not discover that rerolling was free in production.
+        public int RerollBaseCost => 25;
+        public int RerollCostPercent => 40;
     }
 }

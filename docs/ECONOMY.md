@@ -167,6 +167,7 @@ Everything below is data, changeable without a code change:
 | Build and upgrade costs, build times | `BuildingDefinition` levels |
 | Buildable town size | `TownDefinition` |
 | Order slot count and cooldowns | `OrderBoardDefinition` |
+| Reroll floor and reward percentage | `OrderBoardDefinition` |
 | Land deed drop rate | `OrderTemplateDefinition` bonus items and chance |
 | Land cost and unlock order | `ExpansionDefinition` |
 | Auto-replant, queue size, speed | `ProducerDefinition` levels |
@@ -244,10 +245,41 @@ The only place to buy is the order card, on a request line the barn cannot cover
 price on the button rather than behind it — because the answer to "should I buy this?" is nearly
 always no, and the player deserves to see that before tapping.
 
+## Rerolling: the recurring coin decision
+
+Buildings and land are one-off purchases, and buying at the market is deliberately a bad deal — so
+between them coins accumulated with no choice attached. Rerolling is the answer, and it is the only
+coin sink here that **cannot bend the goods economy at all**: it moves no items, it only changes
+which order is on offer.
+
+What the coins buy is the slot's cooldown. Discarding an order has always been free and leaves the
+slot cooling like any other, so the wait is the only thing left worth selling — which is also why
+the price feels fair rather than arbitrary.
+
+The price is a percentage of what the order would have paid, floored by a base cost:
+
+```
+cost = max(RerollBaseCost, order's coin reward × RerollCostPercent / 100)
+```
+
+Priced against the reward because that is what the player is giving up: dodging a lucrative order
+they cannot fill should cost more than clearing a trivial one. The floor exists because a free
+reroll turns the board into a slot machine you pull until it pays.
+
+No new state is persisted — the cost is derived from the order, which is already saved.
+
+### Why not a daily-deal shop
+
+The obvious alternative was a rotating shop selling goods at a discount. It does not work here, and
+the reason is worth recording: **every deal would have to stay priced above what an order pays**, or
+buying stock and delivering it becomes profitable and production becomes optional. A shop whose
+every offer is still a loss is not a shop, it is a menu of bad options.
+
+Rerolling has no such tension, because it never introduces goods.
+
 ## What is deliberately missing
 
-- **Rerolling an order costs nothing.** `OrderBoard.TryDiscard` is the hook;
-  `CurrencySink.OrderReroll` is the reason code waiting for it.
+- **Rerolling is priced.** See below.
 - **Sinks are buildings, land and the market.** `BuildingPurchase`, `BuildingUpgrade`,
   `ExpansionPurchase` and `MarketPurchase` are all wired up. Land stays gated by deeds rather than
   coins on purpose — see [EXPANSION.md](EXPANSION.md).

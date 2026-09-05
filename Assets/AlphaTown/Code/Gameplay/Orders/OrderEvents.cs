@@ -65,4 +65,23 @@ namespace AlphaTown.Gameplay.Orders
             TemplateId = templateId;
         }
     }
+
+    /// <summary>
+    /// An order was paid away and replaced. Separate from expiry and completion because it is the
+    /// one that costs the player money — analytics wants to see how often the board is bad enough
+    /// to buy out of.
+    /// </summary>
+    public readonly struct OrderRerolledEvent
+    {
+        public readonly string OrderId;
+        public readonly int SlotIndex;
+        public readonly int CoinsPaid;
+
+        public OrderRerolledEvent(string orderId, int slotIndex, int coinsPaid)
+        {
+            OrderId = orderId;
+            SlotIndex = slotIndex;
+            CoinsPaid = coinsPaid;
+        }
+    }
 }

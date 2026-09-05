@@ -101,9 +101,22 @@ namespace AlphaTown.UI.Hud
             card.Add(requests);
             card.Add(UiKit.Caption("Pays " + DescribeRewards(order)));
 
+            var actions = UiKit.Row(10f);
+
             var deliver = UiKit.Action("Deliver", () => _report?.Invoke(_commands.Deliver(order.OrderId)));
             UiKit.SetEnabled(deliver, board.CanComplete(order.OrderId));
-            card.Add(deliver);
+            actions.Add(deliver);
+
+            // Buying out of a bad order is the recurring thing coins are for. Priced on the
+            // button, like everything else here, because the decision is whether it is worth it.
+            var rerollCost = board.RerollCost(order.OrderId);
+            var reroll = UiKit.Action("Reroll  " + rerollCost,
+                () => _report?.Invoke(_commands.Reroll(order.OrderId)));
+
+            UiKit.SetEnabled(reroll, world.Wallet.CanAfford(SoftCurrencyId, rerollCost));
+            actions.Add(reroll);
+
+            card.Add(actions);
 
             return card;
         }

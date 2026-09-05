@@ -145,15 +145,26 @@ Four field plots, 500 coins, 10 gems, 4 wheat, and a 50-space barn on an 8×8 pa
 | | |
 | --- | --- |
 | Crops | Wheat (60s), Corn (180s, level 2) |
-| Livestock | Hens (240s, level 2), Cows (420s, level 3) — both eat feed |
-| Chains | Wheat ▸ Feed ▸ Eggs / Milk<br>Wheat ▸ Flour ▸ Bread · Flour + Eggs ▸ Cake · Milk ▸ Cheese |
+| Livestock | Hens (2), cows (3), goats (4), ducks (5), pigs (6) — all eat feed |
+| Chains | Wheat ▸ Feed ▸ the five animal goods<br>Wheat ▸ Flour ▸ Bread · Flour + Eggs ▸ Cake · Milk ▸ Cheese |
 | Decorations | Flower bed (level 1) upgrading into a fountain (level 3) |
 | Orders | Helicopter: 4 slots, 2–5 min, 30% deed chance<br>Train (level 3): 3 slots, 15–40 min, 2.6x coins, 60% for two deeds<br>Ship (level 5): 2 slots, 2–3 hours, 3.6x coins, always three deeds |
 | Land | Three 8×8 parcels gated on 1, 2 and 3 deeds plus coins |
 | Levels | Eight, at 60 / 150 / 320 / 620 / 1100 / 1900 / 3200 / 5000 XP |
 
-Ten buildings: `field_plot`, `chicken_coop`, `dairy_shed`, `mill_house`, `creamery`, `bakery`,
-`patisserie`, `granary`, `flower_bed`, `fountain`. Every level of every one pays XP when it finishes — which is the only
+Thirteen buildings: `field_plot`, `chicken_coop`, `dairy_shed`, `goat_pen`, `duck_pond`,
+`pig_pen`, `mill_house`, `creamery`, `bakery`, `patisserie`, `granary`, `flower_bed`, `fountain`.
+
+The five pens ladder across the whole level curve, and feed cost rises with what the animal is
+worth — one sack for hens, five for pigs. A hen is a habit; a pig is a commitment.
+
+| Animal | Unlocks | Feed | Time | Produces |
+| --- | --- | --- | --- | --- |
+| Hens | 2 | 1 | 4 min | Chicken eggs |
+| Cows | 3 | 2 | 7 min | Milk |
+| Goats | 4 | 2 | 10 min | Goat milk |
+| Ducks | 5 | 3 | 15 min | Duck meat |
+| Pigs | 6 | 5 | 25 min | Bacon | Every level of every one pays XP when it finishes — which is the only
 reason to buy a decoration, since it produces nothing and stores nothing.
 
 The **granary** is the only thing that grows the barn. Its four levels walk the storage

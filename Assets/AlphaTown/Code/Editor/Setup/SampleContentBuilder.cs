@@ -15,9 +15,9 @@ using UnityEngine;
 namespace AlphaTown.EditorTools.Setup
 {
     /// <summary>
-    /// Generates a starting town's worth of content: two crops, hens and cows, a mill, a creamery,
-    /// a bakery and a patisserie, a granary, two decorations, three delivery boards, three parcels
-    /// of land, and the database that ties them together.
+    /// Generates a starting town's worth of content: two crops, five kinds of livestock, a mill,
+    /// a creamery, a bakery and a patisserie, a granary, two decorations, three delivery boards,
+    /// three parcels of land, and the database that ties them together.
     ///
     /// This exists because the slice needs numbers to be playable, and hand-authoring thirty
     /// interlinked assets before the loop can be tried once is the wrong order to find out the
@@ -137,8 +137,13 @@ namespace AlphaTown.EditorTools.Setup
             // turns crops into better ones. It also gives wheat a second buyer, so "plant wheat
             // for flour or for feed" becomes a real question rather than a formality.
             var feed = Item("animal_feed", ItemCategory.Ingredient, coinValue: 8, xpValue: 3);
-            var eggs = Item("eggs", ItemCategory.AnimalProduce, coinValue: 9, xpValue: 5);
+            var eggs = Item("eggs", ItemCategory.AnimalProduce, coinValue: 9, xpValue: 5,
+                displayName: "chicken_eggs");
+
             var milk = Item("milk", ItemCategory.AnimalProduce, coinValue: 13, xpValue: 7);
+            var goatMilk = Item("goat_milk", ItemCategory.AnimalProduce, coinValue: 18, xpValue: 9);
+            var duckMeat = Item("duck_meat", ItemCategory.AnimalProduce, coinValue: 32, xpValue: 15);
+            var bacon = Item("bacon", ItemCategory.AnimalProduce, coinValue: 44, xpValue: 20);
             var cheese = Item("cheese", ItemCategory.FinishedGood, coinValue: 52, xpValue: 24);
             var cake = Item("cake", ItemCategory.FinishedGood, coinValue: 88, xpValue: 38);
 
@@ -181,6 +186,21 @@ namespace AlphaTown.EditorTools.Setup
                 inputs: new[] { new Ingredient(milk, 3) },
                 outputs: new[] { new Ingredient(cheese, 1) });
 
+            // Feed scales with what the animal is worth, so a pig is a commitment and a hen is a
+            // habit. Slower and hungrier as they get more valuable, which is what makes the later
+            // pens something to save up feed for rather than simply better versions of the coop.
+            var collectGoatMilk = Recipe("collect_goat_milk", 600, unlockLevel: 4,
+                inputs: new[] { new Ingredient(feed, 2) },
+                outputs: new[] { new Ingredient(goatMilk, 2) }, bonusOutputMax: 1);
+
+            var raiseDucks = Recipe("raise_ducks", 900, unlockLevel: 5,
+                inputs: new[] { new Ingredient(feed, 3) },
+                outputs: new[] { new Ingredient(duckMeat, 1) }, bonusOutputMax: 1);
+
+            var raisePigs = Recipe("raise_pigs", 1500, unlockLevel: 6,
+                inputs: new[] { new Ingredient(feed, 5) },
+                outputs: new[] { new Ingredient(bacon, 2) }, bonusOutputMax: 1);
+
             // The deepest chain in the sample: two farms and a mill all feed this one building.
             var bakeCake = Recipe("bake_cake", 480, unlockLevel: 4,
                 inputs: new[] { new Ingredient(flour, 2), new Ingredient(eggs, 3) },
@@ -218,6 +238,24 @@ namespace AlphaTown.EditorTools.Setup
             {
                 new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
                 new ProducerTier(queueCapacity: 2, parallelSlots: 2, speed: 1.2f, autoRepeat: true)
+            });
+
+            var goats = Producer("goats", new[] { collectGoatMilk }, new[]
+            {
+                new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 2, parallelSlots: 2, speed: 1.2f, autoRepeat: true)
+            });
+
+            var ducks = Producer("ducks", new[] { raiseDucks }, new[]
+            {
+                new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 2, parallelSlots: 2, speed: 1.25f, autoRepeat: true)
+            });
+
+            var pigs = Producer("pigs", new[] { raisePigs }, new[]
+            {
+                new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 2, parallelSlots: 2, speed: 1.3f, autoRepeat: true)
             });
 
             var creamery = Producer("creamery", new[] { makeCheese }, new[]
@@ -282,7 +320,32 @@ namespace AlphaTown.EditorTools.Setup
                     new BuildingTier(constructionSeconds: 180, coins: coins, coinCost: 1200, xpReward: 70),
                     new BuildingTier(constructionSeconds: 600, coins: coins, coinCost: 4200, xpReward: 220)
                 },
-                placeholder: new Color(0.90f, 0.88f, 0.82f));
+                placeholder: new Color(0.90f, 0.88f, 0.82f),
+                displayName: "cow_shed");
+
+            var goatBuilding = Building("goat_pen", BuildingCategory.Livestock, 2, 2, goats, unlockLevel: 4,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 240, coins: coins, coinCost: 2400, xpReward: 110),
+                    new BuildingTier(constructionSeconds: 720, coins: coins, coinCost: 7000, xpReward: 300)
+                },
+                placeholder: new Color(0.78f, 0.74f, 0.66f));
+
+            var duckBuilding = Building("duck_pond", BuildingCategory.Livestock, 3, 2, ducks, unlockLevel: 5,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 420, coins: coins, coinCost: 4500, xpReward: 190),
+                    new BuildingTier(constructionSeconds: 1200, coins: coins, coinCost: 13000, xpReward: 480)
+                },
+                placeholder: new Color(0.58f, 0.70f, 0.78f));
+
+            var pigBuilding = Building("pig_pen", BuildingCategory.Livestock, 3, 3, pigs, unlockLevel: 6,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 900, coins: coins, coinCost: 9000, xpReward: 360),
+                    new BuildingTier(constructionSeconds: 2400, coins: coins, coinCost: 26000, xpReward: 900)
+                },
+                placeholder: new Color(0.86f, 0.66f, 0.68f));
 
             var creameryBuilding = Building("creamery", BuildingCategory.Production, 2, 2, creamery,
                 unlockLevel: 4,
@@ -407,23 +470,28 @@ namespace AlphaTown.EditorTools.Setup
 
             Register(serialized, "_items", new Object[]
             {
-                wheat, corn, eggs, milk, feed, flour, bread, cheese, cake, deed
+                wheat, corn, feed, eggs, milk, goatMilk, duckMeat, bacon,
+                flour, bread, cheese, cake, deed
             });
             Register(serialized, "_recipes", new Object[]
             {
-                growWheat, growCorn, millFeed, collectEggs, collectMilk,
+                growWheat, growCorn, millFeed,
+                collectEggs, collectMilk, collectGoatMilk, raiseDucks, raisePigs,
                 millFlour, makeCheese, bakeBread, bakeCake
             });
-            Register(serialized, "_producers",
-                new Object[] { field, coop, dairy, mill, creamery, bakery, patisserie });
+            Register(serialized, "_producers", new Object[]
+            {
+                field, coop, dairy, goats, ducks, pigs, mill, creamery, bakery, patisserie
+            });
             Register(serialized, "_storages", new Object[] { barn });
             Register(serialized, "_currencies", new Object[] { coins, gems });
             Register(serialized, "_orderTemplates",
                 new Object[] { template, trainTemplate, shipTemplate });
             Register(serialized, "_buildings", new Object[]
             {
-                plot, coopBuilding, dairyBuilding, millBuilding, creameryBuilding,
-                bakeryBuilding, patisserieBuilding, granary, flowerBed, fountain
+                plot, coopBuilding, dairyBuilding, goatBuilding, duckBuilding, pigBuilding,
+                millBuilding, creameryBuilding, bakeryBuilding, patisserieBuilding,
+                granary, flowerBed, fountain
             });
             Register(serialized, "_orderBoards", new Object[] { board, trainBoard, shipBoard });
             Register(serialized, "_expansions", new Object[] { north, east, northEast });
@@ -469,15 +537,19 @@ namespace AlphaTown.EditorTools.Setup
             return asset;
         }
 
+        /// <param name="displayName">
+        /// Overrides the name shown to the player. Ids are written into save files and stay put;
+        /// what something is called is a separate decision, and this is where they part company.
+        /// </param>
         static ItemDefinition Item(string id, ItemCategory category, int coinValue, int xpValue,
-                                   bool storable = true)
+                                   bool storable = true, string displayName = null)
         {
             var folder = category == ItemCategory.Crop ? "/Crops/Item_" : "/Goods/Item_";
             var serialized = BeginAuthoring<ItemDefinition>(Root + folder + id + ".asset", out var asset);
             if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
-            AssetAuthoring.Set(serialized, "_displayNameKey", "item." + id);
+            AssetAuthoring.Set(serialized, "_displayNameKey", "item." + (displayName ?? id));
             AssetAuthoring.SetEnum(serialized, "_category", (int)category);
             AssetAuthoring.Set(serialized, "_storageCost", 1);
             AssetAuthoring.Set(serialized, "_isStorable", storable);
@@ -652,7 +724,8 @@ namespace AlphaTown.EditorTools.Setup
         static BuildingDefinition Building(string id, BuildingCategory category, int width, int height,
                                            ProducerDefinition producer, int unlockLevel,
                                            BuildingTier[] tiers, Color placeholder,
-                                           BuildingDefinition upgradesInto = null)
+                                           BuildingDefinition upgradesInto = null,
+                                           string displayName = null)
         {
             var serialized = BeginAuthoring<BuildingDefinition>(
                 Root + "/Buildings/Building_" + id + ".asset", out var asset);
@@ -660,7 +733,7 @@ namespace AlphaTown.EditorTools.Setup
             if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
-            AssetAuthoring.Set(serialized, "_displayNameKey", "building." + id);
+            AssetAuthoring.Set(serialized, "_displayNameKey", "building." + (displayName ?? id));
             AssetAuthoring.SetEnum(serialized, "_category", (int)category);
             AssetAuthoring.Set(serialized, "_unlockLevel", unlockLevel);
             AssetAuthoring.Set(serialized, "_footprintWidth", width);

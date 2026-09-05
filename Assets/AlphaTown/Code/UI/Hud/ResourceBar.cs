@@ -8,11 +8,15 @@ using UnityEngine.UIElements;
 namespace AlphaTown.UI.Hud
 {
     /// <summary>
-    /// The strip along the top: coins, gems, land deeds, barn space, and the town's level.
+    /// The strip along the top: the town's level, then coins, gems, land deeds and barn space.
     ///
-    /// These are the five numbers the whole loop moves. Having them all visible at once is what
-    /// makes the loop legible — you can see a delivery pay out and the barn empty in the same
-    /// glance, which is the thing a first playable has to prove.
+    /// These are the numbers the whole loop moves. Having them visible at once is what makes the
+    /// loop legible — you can see a delivery pay out and the barn empty in the same glance, which
+    /// is the thing a first playable has to prove.
+    ///
+    /// Level sits first, on the far left, because it is the only one that never goes down. It is
+    /// the answer to "am I getting anywhere", and it is what gates every building and board still
+    /// out of reach, so it earns the corner the eye starts from.
     /// </summary>
     public sealed class ResourceBar
     {
@@ -21,8 +25,12 @@ namespace AlphaTown.UI.Hud
         readonly Dictionary<string, Label> _itemLabels = new Dictionary<string, Label>(4);
         readonly List<string> _trackedItemIds = new List<string>(4);
 
+        /// <summary>Wide enough for "Lv 88" and a four-digit XP pair, narrow enough to ignore.</summary>
+        const float LevelBadgeWidth = 132f;
+
         Label _barn;
         Label _level;
+        Label _xp;
         VisualElement _xpFill;
 
         public ResourceBar(IGameDatabase database, IReadOnlyList<string> trackedItemIds)
@@ -44,6 +52,7 @@ namespace AlphaTown.UI.Hud
             var left = UiKit.Row(18f);
             bar.Add(left);
 
+            left.Add(BuildLevelBadge());
             AddCurrency(left, _database?.SoftCurrency?.Id);
             AddCurrency(left, _database?.HardCurrency?.Id);
 
@@ -56,14 +65,27 @@ namespace AlphaTown.UI.Hud
             _barn = UiKit.Text("Barn 0/0");
             right.Add(_barn);
 
-            var levelBlock = UiKit.Column(4f);
-            levelBlock.style.minWidth = 150f;
-            _level = UiKit.Text("Level 1", 24, true);
-            levelBlock.Add(_level);
-            levelBlock.Add(UiKit.ProgressBar(out _xpFill, 8f));
-            right.Add(levelBlock);
-
             return bar;
+        }
+
+        /// <summary>
+        /// Level, and how far through it. Deliberately small: it is a status, not a control, and
+        /// the town behind it is what the player came to look at.
+        /// </summary>
+        VisualElement BuildLevelBadge()
+        {
+            var badge = UiKit.Column(3f);
+            badge.style.minWidth = LevelBadgeWidth;
+
+            _level = UiKit.Text("Lv 1", 24, true);
+            badge.Add(_level);
+            badge.Add(UiKit.ProgressBar(out _xpFill, 6f));
+
+            _xp = UiKit.Caption("0 / 0");
+            _xp.style.fontSize = 15;
+            badge.Add(_xp);
+
+            return badge;
         }
 
         /// <summary>
@@ -138,12 +160,14 @@ namespace AlphaTown.UI.Hud
             _barn.style.color = world.Barn.FreeSpace <= 0 ? UiKit.Warn : UiKit.Ink;
 
             var progression = world.Progression;
-            _level.text = "Level " + progression.TownLevel;
+            _level.text = "Lv " + progression.TownLevel;
 
             var needed = progression.XpToNextLevel;
             var into = progression.XpIntoLevel;
-            UiKit.SetProgress(_xpFill,
-                progression.IsMaxLevel || needed + into <= 0L ? 1f : (float)((double)into / (into + needed)));
+            var atCap = progression.IsMaxLevel || needed + into <= 0L;
+
+            UiKit.SetProgress(_xpFill, atCap ? 1f : (float)((double)into / (into + needed)));
+            _xp.text = atCap ? "max" : into + " / " + (into + needed);
         }
     }
 }

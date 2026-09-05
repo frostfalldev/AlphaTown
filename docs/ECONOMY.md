@@ -170,9 +170,32 @@ Everything below is data, changeable without a code change:
 | Land deed drop rate | `OrderTemplateDefinition` bonus items and chance |
 | Land cost and unlock order | `ExpansionDefinition` |
 | Auto-replant, queue size, speed | `ProducerDefinition` levels |
+| Barn capacity per level | `StorageDefinition` |
+| Which barn level a building grants | `BuildingDefinition` level `StorageLevel` |
+| XP for finishing a build | `BuildingDefinition` level `XpReward` |
 
 Board capacity is still a constant (`GameWorld.HelicopterBoardCapacity`). It moves into data when
 board upgrades exist.
+
+## Storage as a sink
+
+The barn is the loop's bottleneck: it fills, harvesting stops, and the way out is to deliver. That
+only works if the bottleneck can be relieved, so a building level can grant a barn level through
+`IBuildingLevel.StorageLevel`, and `GameWorld.ApplyStorageUpgrades` sizes the barn to the best one
+standing.
+
+Three rules make it behave:
+
+- **A maximum, not a sum.** Storage is a tier the player reached. Ten cheap granaries would
+  otherwise be the whole economy.
+- **Recomputed every sync, not applied once.** A restored save, a level retuned in content, and a
+  build that completed while the app was closed all reach the same answer with no special case and
+  no migration.
+- **It only ever raises.** Shrinking the barn below what is already in it would strand goods the
+  player earned, so demolishing a granary keeps the space it bought.
+
+It is a coin sink with a shape the others do not have: buying it does not add income, it removes a
+reason to stop playing.
 
 ## What is deliberately missing
 

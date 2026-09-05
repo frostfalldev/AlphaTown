@@ -201,11 +201,29 @@ namespace AlphaTown.UI.Hud
             _title.text = DisplayNames.ForBuilding(_database, building.DefinitionId) +
                           "  ·  Lv " + building.Level;
 
-            _detail.text = "Nothing is produced here.";
+            _detail.text = DescribeNonProducer(building);
             SetProgress(-1f);
             SetButton(_primary, "", null, false);
             SetButton(_secondary, "", null, false);
             AddUpgradeButton(building);
+        }
+
+        /// <summary>
+        /// What a building that makes nothing is actually for.
+        ///
+        /// "Nothing is produced here" is true of a granary and useless: it stores, which is the
+        /// whole reason it was bought, and a panel that will not say so makes the most expensive
+        /// building in the town look like a mistake.
+        /// </summary>
+        string DescribeNonProducer(BuildingInstance building)
+        {
+            var storageLevel = building.Definition.GetLevel(building.Level).StorageLevel;
+            if (storageLevel <= 0) return "Nothing is produced here.";
+
+            var storage = _database?.DefaultStorage;
+            return storage == null
+                ? "Holds the barn at level " + storageLevel + "."
+                : "Holds the barn at " + storage.GetCapacity(storageLevel) + " slots.";
         }
 
         /// <summary>

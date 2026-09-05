@@ -23,6 +23,16 @@ namespace AlphaTown.Data.Buildings
         IReadOnlyList<ItemStack> ItemCost { get; }
 
         /// <summary>
+        /// The barn level this building grants while it stands. Zero for anything that is not
+        /// storage, which is almost everything.
+        ///
+        /// A level rather than a capacity, so the numbers stay in one place: the storage
+        /// definition owns how much space each level is worth, and this only says which level the
+        /// player has earned. Retuning capacity is then one asset, not two.
+        /// </summary>
+        int StorageLevel { get; }
+
+        /// <summary>
         /// XP paid when this level finishes building.
         ///
         /// It is what makes a decoration worth buying: it produces nothing and stores nothing, so

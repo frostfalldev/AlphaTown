@@ -86,6 +86,31 @@ namespace AlphaTown.Gameplay.Buildings
             }
         }
 
+        /// <summary>
+        /// The best barn level anything standing in the town grants, or zero if nothing does.
+        ///
+        /// A maximum rather than a sum, so a second granary is pointless rather than an exploit —
+        /// storage is a tier the player has reached, not a stack of bonuses.
+        ///
+        /// Buildings mid-upgrade are excluded, because a level is not earned until it is built.
+        /// That never costs the player space: the barn only ever moves up.
+        /// </summary>
+        public int HighestStorageLevel()
+        {
+            var highest = 0;
+
+            for (var i = 0; i < _buildings.Count; i++)
+            {
+                var building = _buildings[i];
+                if (!building.IsOperational) continue;
+
+                var granted = building.Definition.GetLevel(building.Level).StorageLevel;
+                if (granted > highest) highest = granted;
+            }
+
+            return highest;
+        }
+
         /// <summary>Dry run of everything <see cref="TryPlace"/> checks. Nothing is charged.</summary>
         public BuildingActionResult ValidatePlacement(string definitionId, GridPosition origin)
         {

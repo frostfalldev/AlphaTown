@@ -148,9 +148,15 @@ Four field plots, 500 coins, 10 gems, 4 wheat, and a 50-space barn on an 8×8 pa
 | Land | Three 8×8 parcels gated on 1, 2 and 3 deeds plus coins |
 | Levels | Eight, at 60 / 150 / 320 / 620 / 1100 / 1900 / 3200 / 5000 XP |
 
-Seven buildings: `field_plot`, `chicken_coop`, `mill_house`, `bakery`, `patisserie`, `flower_bed`,
-`fountain`. Every level of every one pays XP when it finishes — which is the only reason to buy a
-decoration, since it produces nothing and stores nothing.
+Eight buildings: `field_plot`, `chicken_coop`, `mill_house`, `bakery`, `patisserie`, `granary`,
+`flower_bed`, `fountain`. Every level of every one pays XP when it finishes — which is the only
+reason to buy a decoration, since it produces nothing and stores nothing.
+
+The **granary** is the only thing that grows the barn. Its four levels walk the storage
+definition's capacities from 75 up to 240; the town starts on 50. Storage is a tier reached, not a
+stack of bonuses, so a second granary adds nothing, and the barn only ever moves up — demolishing
+one keeps the space it bought, because shrinking below what is already stored would strand goods
+the player earned.
 
 Every number is a placeholder chosen to make the loop legible inside a few minutes rather than a
 few days. Crops finish in a minute because a four-hour wheat field cannot be evaluated in a
@@ -185,11 +191,9 @@ clear, so the town stays draggable with one thumb.
 4. **Nothing is celebrated.** A level-up, a completed delivery and a failed tap all produce the
    same small grey toast. The three biggest moments in the loop are indistinguishable from an error
    message.
-5. **The barn fills, and it can never grow.** The bottleneck works — it pushes you towards orders
-   — but it announces itself by silently refusing a harvest, and *nothing in the game raises the
-   barn's level*. The storage definition authors five levels and only the one you start on is
-   reachable, so the pressure eventually becomes a wall. Six storable goods now compete for 75
-   slots. This is the most important missing building.
+5. **The barn announces it is full by silently refusing a harvest.** The bottleneck itself now
+   works properly — the granary relieves it, and the pressure between granaries is the point — but
+   the only signal is the capacity number turning red. A refused harvest should say so.
 6. **Coins have almost nowhere to go.** Buildings and land are the only sinks. Once you own the
    three buildings, coins accumulate with no decision attached to them.
 7. **The map is bigger than the game.** A 24×24 town with three unlockable parcels around a used

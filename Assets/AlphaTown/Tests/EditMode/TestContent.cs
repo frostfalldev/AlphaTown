@@ -35,6 +35,7 @@ namespace AlphaTown.Tests.EditMode
         public const string BakeryBuilding = "building.bakery";
         public const string Hut = "building.hut";
         public const string Statue = "building.statue";
+        public const string Granary = "building.granary";
         public const string Villa = "building.villa";
 
         public const int ShedCoinCost = 20;
@@ -42,6 +43,12 @@ namespace AlphaTown.Tests.EditMode
         public const int WorkshopFlourCost = 2;
         public const int BakeryLevel1CoinCost = 100;
         public const int BakeryLevel2CoinCost = 200;
+        public const int GranaryCoinCost = 60;
+        public const int GranaryBuildSeconds = 45;
+
+        /// <summary>The barn level a built granary grants. TestContent's barn has two levels.</summary>
+        public const int GranaryStorageLevel = 2;
+
         public const int StatueCoinCost = 40;
         public const int StatueBuildSeconds = 30;
         public const int StatueXpReward = 25;
@@ -252,6 +259,18 @@ namespace AlphaTown.Tests.EditMode
                 Shed,
                 new GridSize(1, 1),
                 new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, ShedCoinCost) })));
+
+            // Grants a barn level while it stands — the only thing that grows storage.
+            database.WithBuilding(new FakeBuildingDefinition(
+                Granary,
+                new GridSize(1, 1),
+                new FakeBuildingLevel(
+                    GranaryBuildSeconds,
+                    new[] { new CurrencyAmount(Coins, GranaryCoinCost) },
+                    storageLevel: GranaryStorageLevel))
+            {
+                Category = BuildingCategory.Storage
+            });
 
             // Produces nothing, stores nothing, pays XP for being raised — a decoration.
             database.WithBuilding(new FakeBuildingDefinition(

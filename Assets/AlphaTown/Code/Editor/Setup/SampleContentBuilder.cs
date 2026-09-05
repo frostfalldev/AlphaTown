@@ -16,8 +16,8 @@ namespace AlphaTown.EditorTools.Setup
 {
     /// <summary>
     /// Generates a starting town's worth of content: two crops and a hen coop, a mill, a bakery
-    /// and a patisserie, two decorations, an order board, three parcels of land, and the database
-    /// that ties them together.
+    /// and a patisserie, a granary, two decorations, an order board, three parcels of land, and
+    /// the database that ties them together.
     ///
     /// This exists because the slice needs numbers to be playable, and hand-authoring thirty
     /// interlinked assets before the loop can be tried once is the wrong order to find out the
@@ -253,6 +253,22 @@ namespace AlphaTown.EditorTools.Setup
             // The fountain is built first because the flower bed upgrades into it: a small bed
             // becoming a centrepiece is the one place the sample content exercises the
             // transform-into-another-definition path that BuildingDefinition already supports.
+            // The granary is the only thing that grows the barn, and the barn filling is what
+            // sends the player to the order board. Its four levels walk the storage definition's
+            // capacities from 75 up to 240; without it the player is stuck on the 50 they start
+            // with however long they play.
+            //
+            // Level 2 unlock, because the squeeze arrives early and the answer to it should too.
+            var granary = Building("granary", BuildingCategory.Storage, 2, 2, null, unlockLevel: 2,
+                new[]
+                {
+                    new BuildingTier(60, coins, coinCost: 600, xpReward: 40, storageLevel: 2),
+                    new BuildingTier(300, coins, coinCost: 2200, xpReward: 120, storageLevel: 3),
+                    new BuildingTier(900, coins, coinCost: 7000, xpReward: 320, storageLevel: 4),
+                    new BuildingTier(1800, coins, coinCost: 18000, xpReward: 800, storageLevel: 5)
+                },
+                placeholder: new Color(0.64f, 0.52f, 0.36f));
+
             var fountain = Building("fountain", BuildingCategory.Decoration, 2, 2, null, unlockLevel: 3,
                 new[]
                 {
@@ -287,11 +303,11 @@ namespace AlphaTown.EditorTools.Setup
                 coinCost: 4000, requires: north, unlockLevel: 4, sortOrder: 2);
 
             // --- New game ----------------------------------------------------------------------
-            // Barn level 2 (75 slots) rather than 1 (50). Six storable goods now compete for that
-            // space, and nothing in the game can raise it afterwards — see the TODO on
-            // GameWorld.GrantStartingBarnLevel. Starting a level up buys room the player cannot
-            // yet earn.
-            var newGame = NewGame(barnLevel: 2,
+            // Back to the smallest barn now that the granary exists to grow it. Starting a level
+            // up was a workaround for having no upgrade path; with one, the early squeeze is the
+            // point — it is what makes the first granary feel like a relief rather than a
+            // formality.
+            var newGame = NewGame(barnLevel: 1,
                 items: new[] { new Ingredient(wheat, 4) },
                 buildings: new[]
                 {
@@ -319,7 +335,8 @@ namespace AlphaTown.EditorTools.Setup
             Register(serialized, "_orderTemplates", new Object[] { template });
             Register(serialized, "_buildings", new Object[]
             {
-                plot, coopBuilding, millBuilding, bakeryBuilding, patisserieBuilding, flowerBed, fountain
+                plot, coopBuilding, millBuilding, bakeryBuilding, patisserieBuilding,
+                granary, flowerBed, fountain
             });
             Register(serialized, "_orderBoards", new Object[] { board });
             Register(serialized, "_expansions", new Object[] { north, east, northEast });
@@ -532,13 +549,16 @@ namespace AlphaTown.EditorTools.Setup
             public readonly int CoinCost;
             public readonly int XpReward;
 
+            public readonly int StorageLevel;
+
             public BuildingTier(int constructionSeconds, CurrencyDefinition coins, int coinCost,
-                                int xpReward = 0)
+                                int xpReward = 0, int storageLevel = 0)
             {
                 ConstructionSeconds = constructionSeconds;
                 Coins = coins;
                 CoinCost = coinCost;
                 XpReward = xpReward;
+                StorageLevel = storageLevel;
             }
         }
 
@@ -566,6 +586,7 @@ namespace AlphaTown.EditorTools.Setup
             {
                 AssetAuthoring.SetElement(element, "_constructionSeconds", tiers[index].ConstructionSeconds);
                 AssetAuthoring.SetElement(element, "_xpReward", tiers[index].XpReward);
+                AssetAuthoring.SetElement(element, "_storageLevel", tiers[index].StorageLevel);
 
                 var costs = element.FindPropertyRelative("_currencyCost");
                 if (costs == null) return;

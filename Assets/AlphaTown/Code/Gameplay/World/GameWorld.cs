@@ -147,12 +147,8 @@ namespace AlphaTown.Gameplay.World
         /// <summary>
         /// Raises the barn to the level the new-game definition asks for.
         ///
-        /// TODO(economy): this is the only thing in the game that ever moves the barn's level, so
-        /// a player is stuck with whatever they start with while the storage definition authors
-        /// five levels. The barn filling is the pressure that sends people to the order board, and
-        /// a bottleneck that can never be relieved stops being pressure and starts being a wall.
-        /// The intended fix is a Storage-category building whose level sets the barn's, the same
-        /// shape as the construction XP above.
+        /// This only sets the floor. Storage buildings raise it from there — see
+        /// <see cref="ApplyStorageUpgrades"/>.
         ///
         /// <see cref="BarnInventory.SetLevel"/> clamps to what the storage definition actually
         /// offers, which is right for a save from a future build but wrong to pass over in
@@ -319,9 +315,28 @@ namespace AlphaTown.Gameplay.World
             // Buildings first: a build finishing offline can bring a producer into existence, and
             // that producer should catch up in the same pass rather than a second later.
             this.Buildings.Sync();
+            ApplyStorageUpgrades();
 
             for (var i = 0; i < _producers.Count; i++) _producers[i].Sync();
             HelicopterOrders.Sync();
+        }
+
+        /// <summary>
+        /// Sizes the barn to the best storage building standing.
+        ///
+        /// Recomputed on every sync rather than applied once when a granary finishes, which makes
+        /// it self-healing: a restored save, a granary whose level was retuned in content, and a
+        /// build that completed while the app was closed all arrive at the same answer without
+        /// any of them being a special case.
+        ///
+        /// It only ever raises. Shrinking a barn below what is already in it would strand goods
+        /// the player earned, so demolishing a granary keeps the space it bought — generous, and
+        /// far better than the alternative.
+        /// </summary>
+        void ApplyStorageUpgrades()
+        {
+            var granted = this.Buildings.HighestStorageLevel();
+            if (granted > Barn.Level) Barn.SetLevel(granted);
         }
 
         public void Tick(float deltaSeconds)

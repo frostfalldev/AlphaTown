@@ -20,6 +20,10 @@ namespace AlphaTown.Data.Buildings
         [Tooltip("XP paid when this level finishes building. The only reason to buy a decoration.")]
         int _xpReward;
 
+        [SerializeField, Min(0)]
+        [Tooltip("Barn level this grants while it stands. 0 for anything that is not storage.")]
+        int _storageLevel;
+
         CurrencyAmount[] _cachedCurrencyCost;
         ItemStack[] _cachedItemCost;
 
@@ -34,6 +38,8 @@ namespace AlphaTown.Data.Buildings
             _cachedItemCost ?? (_cachedItemCost = BuildItems(_itemCost));
 
         public int XpReward => _xpReward;
+
+        public int StorageLevel => _storageLevel;
 
         public void InvalidateCache()
         {

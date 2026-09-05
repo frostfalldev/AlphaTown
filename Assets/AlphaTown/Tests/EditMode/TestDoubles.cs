@@ -243,18 +243,20 @@ namespace AlphaTown.Tests.EditMode
     internal sealed class FakeBuildingLevel : IBuildingLevel
     {
         public FakeBuildingLevel(int constructionSeconds = 0, CurrencyAmount[] currencyCost = null,
-                                 ItemStack[] itemCost = null, int xpReward = 0)
+                                 ItemStack[] itemCost = null, int xpReward = 0, int storageLevel = 0)
         {
             ConstructionTime = TimeSpan.FromSeconds(constructionSeconds);
             CurrencyCost = currencyCost ?? Array.Empty<CurrencyAmount>();
             ItemCost = itemCost ?? Array.Empty<ItemStack>();
             XpReward = xpReward;
+            StorageLevel = storageLevel;
         }
 
         public TimeSpan ConstructionTime { get; }
         public IReadOnlyList<CurrencyAmount> CurrencyCost { get; }
         public IReadOnlyList<ItemStack> ItemCost { get; }
         public int XpReward { get; }
+        public int StorageLevel { get; }
     }
 
     internal sealed class FakeBuildingDefinition : IBuildingDefinition

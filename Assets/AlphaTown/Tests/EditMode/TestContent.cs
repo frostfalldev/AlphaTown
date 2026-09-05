@@ -65,6 +65,20 @@ namespace AlphaTown.Tests.EditMode
         public const string Field = "field";
         public const string FieldBuilding = "building.field";
 
+        // Livestock: the coop eats, which is the one way an animal differs from a field.
+        public const string Feed = "animal_feed";
+        public const string Eggs = "eggs";
+        public const string FeedRecipe = "recipe.feed";
+        public const string EggsRecipe = "recipe.eggs";
+        public const string Coop = "coop";
+        public const string CoopBuilding = "building.coop";
+        public const string Mill = "mill";
+        public const string MillBuilding = "building.mill";
+
+        public const int FeedPerEggCollection = 2;
+        public const int EggCollectSeconds = 240;
+        public const int EggYield = 2;
+
         public const int WheatGrowSeconds = 120;
         public const int WheatYield = 2;
         public const int CornGrowSeconds = 300;
@@ -269,6 +283,8 @@ namespace AlphaTown.Tests.EditMode
                 new FakeProducerLevel(queueCapacity: 1, parallelSlots: 1),
                 new FakeProducerLevel(queueCapacity: 1, parallelSlots: 1, autoRepeat: true)));
 
+            AddLivestock(database);
+
             database.WithBuilding(new FakeBuildingDefinition(
                 FieldBuilding,
                 new GridSize(1, 1),
@@ -277,6 +293,62 @@ namespace AlphaTown.Tests.EditMode
             {
                 Category = BuildingCategory.Farming,
                 ProducerDefinitionId = Field
+            });
+        }
+
+        /// <summary>
+        /// A coop that eats. Feed is milled from wheat, so the whole chain — grow, mill, feed,
+        /// collect — is exercisable in one fixture.
+        /// </summary>
+        static void AddLivestock(FakeDatabase database)
+        {
+            var feedRecipe = new FakeRecipe(
+                FeedRecipe,
+                TimeSpan.FromSeconds(30),
+                new[] { new ItemStack(Wheat, 2) },
+                new[] { new ItemStack(Feed, 1) },
+                unlockLevel: 1);
+
+            var eggsRecipe = new FakeRecipe(
+                EggsRecipe,
+                TimeSpan.FromSeconds(EggCollectSeconds),
+                new[] { new ItemStack(Feed, FeedPerEggCollection) },
+                new[] { new ItemStack(Eggs, EggYield) },
+                unlockLevel: 1);
+
+            database
+                .WithItem(new FakeItem(Feed, coinValue: 8, xpValue: 3))
+                .WithItem(new FakeItem(Eggs, coinValue: 9, xpValue: 5))
+                .WithRecipe(feedRecipe)
+                .WithRecipe(eggsRecipe);
+
+            database.WithProducer(new FakeProducerDefinition(
+                Coop,
+                new IRecipeDefinition[] { eggsRecipe },
+                new FakeProducerLevel(queueCapacity: 1, parallelSlots: 1)));
+
+            // Feed has to be made somewhere, or the chain the coop depends on could not exist in
+            // a real game either.
+            database.WithProducer(new FakeProducerDefinition(
+                Mill,
+                new IRecipeDefinition[] { feedRecipe },
+                new FakeProducerLevel(queueCapacity: 2, parallelSlots: 1)));
+
+            database.WithBuilding(new FakeBuildingDefinition(
+                MillBuilding,
+                new GridSize(1, 1),
+                new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, FieldCoinCost) }))
+            {
+                ProducerDefinitionId = Mill
+            });
+
+            database.WithBuilding(new FakeBuildingDefinition(
+                CoopBuilding,
+                new GridSize(1, 1),
+                new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, FieldCoinCost) }))
+            {
+                Category = BuildingCategory.Livestock,
+                ProducerDefinitionId = Coop
             });
         }
 

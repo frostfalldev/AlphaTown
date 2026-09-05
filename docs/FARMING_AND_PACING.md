@@ -5,6 +5,33 @@ free goods becoming free money.
 
 ---
 
+## Livestock
+
+An animal is a producer that eats, and that one input is the whole difference between a coop and a
+field. A field turns time into goods; livestock turns crops into better ones.
+
+```
+Wheat ─▶ Feed ─▶ Eggs ─▶ Cake
+            └──▶ Milk ─▶ Cheese
+```
+
+Nothing in the simulation knows what an animal is. A coop is a producer whose recipe happens to
+have an input, so it runs through exactly the machinery a bakery does — feed consumed when the
+collection starts, output waiting in the tray, offline progression and auto-collect for free.
+
+Two things fall out of the feed chain that are worth having on purpose:
+
+- **Wheat gets a second buyer.** "Plant wheat for flour or for feed" becomes a real question rather
+  than a formality, and the mill stops being a stop on one chain and becomes the centre of the town.
+- **A coop can be blocked in a way a field cannot.** An empty field is waiting for a tap; an empty
+  coop may be waiting for feed, and those look identical on screen. So an idle producer now says
+  which it is — "Needs 2 more Animal Feed" rather than "no crop is unlocked", which is fair at a
+  field and baffling at a hen house.
+
+`BuildingCategory.Livestock` keeps pens out of `Farming`. They are still tapped and swept like
+anything else; the split exists so the build menu can group them, and so a later decision to make
+the sickle crop-only is a filter rather than a refactor.
+
 ## Fields
 
 ### A field is not a new system

@@ -15,9 +15,9 @@ using UnityEngine;
 namespace AlphaTown.EditorTools.Setup
 {
     /// <summary>
-    /// Generates a starting town's worth of content: two crops and a hen coop, a mill, a bakery
-    /// and a patisserie, a granary, two decorations, three delivery boards, three parcels of land,
-    /// and the database that ties them together.
+    /// Generates a starting town's worth of content: two crops, hens and cows, a mill, a creamery,
+    /// a bakery and a patisserie, a granary, two decorations, three delivery boards, three parcels
+    /// of land, and the database that ties them together.
     ///
     /// This exists because the slice needs numbers to be playable, and hand-authoring thirty
     /// interlinked assets before the loop can be tried once is the wrong order to find out the
@@ -133,7 +133,13 @@ namespace AlphaTown.EditorTools.Setup
             var corn = Item("corn", ItemCategory.Crop, coinValue: 6, xpValue: 4);
             var flour = Item("flour", ItemCategory.Ingredient, coinValue: 14, xpValue: 7);
             var bread = Item("bread", ItemCategory.FinishedGood, coinValue: 34, xpValue: 16);
+            // Feed is what makes an animal an animal: a field turns time into goods, livestock
+            // turns crops into better ones. It also gives wheat a second buyer, so "plant wheat
+            // for flour or for feed" becomes a real question rather than a formality.
+            var feed = Item("animal_feed", ItemCategory.Ingredient, coinValue: 8, xpValue: 3);
             var eggs = Item("eggs", ItemCategory.AnimalProduce, coinValue: 9, xpValue: 5);
+            var milk = Item("milk", ItemCategory.AnimalProduce, coinValue: 13, xpValue: 7);
+            var cheese = Item("cheese", ItemCategory.FinishedGood, coinValue: 52, xpValue: 24);
             var cake = Item("cake", ItemCategory.FinishedGood, coinValue: 88, xpValue: 38);
 
             // Deeds are unstorable on purpose: they are a currency wearing an item's clothes, and
@@ -157,11 +163,23 @@ namespace AlphaTown.EditorTools.Setup
                 inputs: new[] { new Ingredient(flour, 2), new Ingredient(corn, 1) },
                 outputs: new[] { new Ingredient(bread, 1) });
 
-            // Eggs need no input either — a coop is a field that happens to hold chickens. Slower
-            // than wheat, and worth three times as much, so it is the reason to want a second
-            // kind of plot rather than a fifth field.
+            var millFeed = Recipe("mill_feed", 45, unlockLevel: 2,
+                inputs: new[] { new Ingredient(wheat, 2) },
+                outputs: new[] { new Ingredient(feed, 1) });
+
+            // Hens eat. That one input is the whole difference between a coop and a field, and it
+            // is what puts the mill at the centre of the town rather than off to one side.
             var collectEggs = Recipe("collect_eggs", 240, unlockLevel: 2,
+                inputs: new[] { new Ingredient(feed, 1) },
                 outputs: new[] { new Ingredient(eggs, 2) }, bonusOutputMax: 1);
+
+            var collectMilk = Recipe("collect_milk", 420, unlockLevel: 3,
+                inputs: new[] { new Ingredient(feed, 2) },
+                outputs: new[] { new Ingredient(milk, 2) }, bonusOutputMax: 1);
+
+            var makeCheese = Recipe("make_cheese", 360, unlockLevel: 4,
+                inputs: new[] { new Ingredient(milk, 3) },
+                outputs: new[] { new Ingredient(cheese, 1) });
 
             // The deepest chain in the sample: two farms and a mill all feed this one building.
             var bakeCake = Recipe("bake_cake", 480, unlockLevel: 4,
@@ -177,7 +195,7 @@ namespace AlphaTown.EditorTools.Setup
                 new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1.25f, autoRepeat: true)
             });
 
-            var mill = Producer("mill", new[] { millFlour }, new[]
+            var mill = Producer("mill", new[] { millFlour, millFeed }, new[]
             {
                 new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
                 new ProducerTier(queueCapacity: 4, parallelSlots: 2, speed: 1.2f, autoRepeat: false)
@@ -194,6 +212,18 @@ namespace AlphaTown.EditorTools.Setup
             {
                 new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
                 new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1.3f, autoRepeat: true)
+            });
+
+            var dairy = Producer("dairy", new[] { collectMilk }, new[]
+            {
+                new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 2, parallelSlots: 2, speed: 1.2f, autoRepeat: true)
+            });
+
+            var creamery = Producer("creamery", new[] { makeCheese }, new[]
+            {
+                new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 3, parallelSlots: 2, speed: 1.2f, autoRepeat: false)
             });
 
             var patisserie = Producer("patisserie", new[] { bakeCake }, new[]
@@ -230,7 +260,7 @@ namespace AlphaTown.EditorTools.Setup
                 },
                 placeholder: new Color(0.78f, 0.48f, 0.36f));
 
-            var coopBuilding = Building("chicken_coop", BuildingCategory.Farming, 2, 2, coop, unlockLevel: 2,
+            var coopBuilding = Building("chicken_coop", BuildingCategory.Livestock, 2, 2, coop, unlockLevel: 2,
                 new[]
                 {
                     new BuildingTier(constructionSeconds: 60, coins: coins, coinCost: 400, xpReward: 25),
@@ -245,6 +275,23 @@ namespace AlphaTown.EditorTools.Setup
                     new BuildingTier(constructionSeconds: 900, coins: coins, coinCost: 9000, xpReward: 400)
                 },
                 placeholder: new Color(0.82f, 0.60f, 0.72f));
+
+            var dairyBuilding = Building("dairy_shed", BuildingCategory.Livestock, 3, 2, dairy, unlockLevel: 3,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 180, coins: coins, coinCost: 1200, xpReward: 70),
+                    new BuildingTier(constructionSeconds: 600, coins: coins, coinCost: 4200, xpReward: 220)
+                },
+                placeholder: new Color(0.90f, 0.88f, 0.82f));
+
+            var creameryBuilding = Building("creamery", BuildingCategory.Production, 2, 2, creamery,
+                unlockLevel: 4,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 300, coins: coins, coinCost: 2800, xpReward: 130),
+                    new BuildingTier(constructionSeconds: 900, coins: coins, coinCost: 7500, xpReward: 340)
+                },
+                placeholder: new Color(0.72f, 0.80f, 0.70f));
 
             // Decorations produce nothing and store nothing. They exist to be somewhere for coins
             // to go, and they pay XP for it — without that reward there would be no reason to
@@ -358,18 +405,25 @@ namespace AlphaTown.EditorTools.Setup
             var database = AssetAuthoring.CreateOrLoad<GameDatabase>(Root + "/GameDatabase.asset");
             var serialized = AssetAuthoring.Edit(database);
 
-            Register(serialized, "_items", new Object[] { wheat, corn, eggs, flour, bread, cake, deed });
-            Register(serialized, "_recipes",
-                new Object[] { growWheat, growCorn, collectEggs, millFlour, bakeBread, bakeCake });
-            Register(serialized, "_producers", new Object[] { field, coop, mill, bakery, patisserie });
+            Register(serialized, "_items", new Object[]
+            {
+                wheat, corn, eggs, milk, feed, flour, bread, cheese, cake, deed
+            });
+            Register(serialized, "_recipes", new Object[]
+            {
+                growWheat, growCorn, millFeed, collectEggs, collectMilk,
+                millFlour, makeCheese, bakeBread, bakeCake
+            });
+            Register(serialized, "_producers",
+                new Object[] { field, coop, dairy, mill, creamery, bakery, patisserie });
             Register(serialized, "_storages", new Object[] { barn });
             Register(serialized, "_currencies", new Object[] { coins, gems });
             Register(serialized, "_orderTemplates",
                 new Object[] { template, trainTemplate, shipTemplate });
             Register(serialized, "_buildings", new Object[]
             {
-                plot, coopBuilding, millBuilding, bakeryBuilding, patisserieBuilding,
-                granary, flowerBed, fountain
+                plot, coopBuilding, dairyBuilding, millBuilding, creameryBuilding,
+                bakeryBuilding, patisserieBuilding, granary, flowerBed, fountain
             });
             Register(serialized, "_orderBoards", new Object[] { board, trainBoard, shipBoard });
             Register(serialized, "_expansions", new Object[] { north, east, northEast });

@@ -9,9 +9,16 @@ namespace AlphaTown.Data.Buildings
         Community = 3,
         Decoration = 4,
 
-        /// <summary>Fields and pens. Wired up as ordinary producers in the next phase.</summary>
+        /// <summary>Crop fields. Swept with the sickle, sown with a tap.</summary>
         Farming = 5,
 
-        Special = 6
+        Special = 6,
+
+        /// <summary>
+        /// Coops, sheds and pens. Producers like any other, and separated from
+        /// <see cref="Farming"/> because they behave differently in the one way that matters: an
+        /// animal eats. A field turns time into goods; livestock turns crops into better goods.
+        /// </summary>
+        Livestock = 7
     }
 }

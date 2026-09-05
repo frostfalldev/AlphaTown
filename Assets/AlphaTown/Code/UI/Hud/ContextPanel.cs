@@ -184,7 +184,7 @@ namespace AlphaTown.UI.Hud
                     : "Plant " + DisplayNames.ForItem(_database, FirstOutputOf(recipeId));
 
                 _detail.text = "Empty. " + (string.IsNullOrEmpty(recipeId)
-                    ? "No crop is unlocked or affordable."
+                    ? _commands.DescribeWhyNothingCanStart(producer.DefinitionId)
                     : "Ready to sow.");
 
                 SetProgress(-1f);

@@ -62,7 +62,7 @@ namespace AlphaTown.Gameplay.Commands
             if (!producer.HasFreeQueueSlot) return CommandResult.Fail("Already growing.");
 
             var recipe = recipeId ?? DefaultRecipeFor(producer.DefinitionId, producer.LastRecipeId);
-            if (string.IsNullOrEmpty(recipe)) return CommandResult.Fail("No crop is unlocked yet.");
+            if (string.IsNullOrEmpty(recipe)) return CommandResult.Fail(DescribeWhyNothingCanStart(producer.DefinitionId));
 
             if (!_database.TryGetRecipe(recipe, out var definition))
                 return CommandResult.Fail("Unknown crop.");
@@ -312,7 +312,89 @@ namespace AlphaTown.Gameplay.Commands
         /// still more use in a failure message than nothing.
         /// </summary>
         string DisplayNameOf(string itemId) =>
-            _database.TryGetItem(itemId, out var item) ? item.DisplayNameKey : itemId;
+            _database.TryGetItem(itemId, out var item) ? Pretty(item.DisplayNameKey) : Pretty(itemId);
+
+        /// <summary>
+        /// "item.animal_feed" reads as "Animal Feed". There is no localisation table yet, and a
+        /// failure message showing a raw key helps nobody.
+        /// TODO(localisation): the UI has the same helper; both go when a string table lands.
+        /// </summary>
+        static string Pretty(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return string.Empty;
+
+            var lastDot = key.LastIndexOf('.');
+            var tail = lastDot >= 0 && lastDot < key.Length - 1 ? key.Substring(lastDot + 1) : key;
+
+            var builder = new System.Text.StringBuilder(tail.Length);
+            var startOfWord = true;
+
+            for (var i = 0; i < tail.Length; i++)
+            {
+                var character = tail[i] == '_' || tail[i] == '-' ? ' ' : tail[i];
+                builder.Append(startOfWord ? char.ToUpperInvariant(character) : character);
+                startOfWord = character == ' ';
+            }
+
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// The first recipe the town level allows, whether or not the goods for it are in the barn.
+        ///
+        /// <see cref="DefaultRecipeFor"/> deliberately skips what cannot be afforded, which is
+        /// right for deciding what to start and useless for explaining why nothing can be. This is
+        /// the same walk without the affordability test.
+        /// </summary>
+        public IRecipeDefinition NextUnlockedRecipeFor(string producerDefinitionId)
+        {
+            if (!_database.TryGetProducer(producerDefinitionId, out var producer)) return null;
+
+            var recipes = producer.Recipes;
+            for (var i = 0; i < recipes.Count; i++)
+            {
+                if (recipes[i] != null && _world.Progression.IsRecipeUnlocked(recipes[i])) return recipes[i];
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Why this building cannot start anything: locked, or short of an ingredient.
+        ///
+        /// It matters more now that livestock eat. "No crop is unlocked" is a fair thing to tell
+        /// someone standing at an empty field and a baffling thing to tell someone whose hens are
+        /// merely out of feed — and the difference between those two is a sentence, not a system.
+        /// </summary>
+        public string DescribeWhyNothingCanStart(string producerDefinitionId)
+        {
+            var recipe = NextUnlockedRecipeFor(producerDefinitionId);
+            if (recipe == null)
+            {
+                var locked = FirstRecipeOf(producerDefinitionId);
+                return locked != null
+                    ? "Unlocks at town level " + locked.UnlockLevel + "."
+                    : "There is nothing this can make.";
+            }
+
+            var inputs = recipe.Inputs;
+            for (var i = 0; i < inputs.Count; i++)
+            {
+                var missing = inputs[i].Count - _world.Barn.CountOf(inputs[i].ItemId);
+                if (missing > 0)
+                    return "Needs " + missing + " more " + DisplayNameOf(inputs[i].ItemId) + ".";
+            }
+
+            return "Nothing can start here right now.";
+        }
+
+        IRecipeDefinition FirstRecipeOf(string producerDefinitionId)
+        {
+            if (!_database.TryGetProducer(producerDefinitionId, out var producer)) return null;
+
+            var recipes = producer.Recipes;
+            return recipes.Count > 0 ? recipes[0] : null;
+        }
 
         public static string Describe(BuildingActionResult result)
         {

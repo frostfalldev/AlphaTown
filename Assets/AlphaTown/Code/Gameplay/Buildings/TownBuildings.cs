@@ -6,6 +6,7 @@ using AlphaTown.Core.Timing;
 using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Economy;
+using AlphaTown.Data.Progression;
 using AlphaTown.Gameplay.Economy;
 using AlphaTown.Gameplay.Grid;
 using AlphaTown.Gameplay.Inventory;
@@ -31,7 +32,7 @@ namespace AlphaTown.Gameplay.Buildings
         readonly IEventBus _events;
         readonly IWallet _wallet;
         readonly IInventory _barn;
-        readonly IUnlockGate _unlocks;
+        readonly ITownProgression _progression;
         readonly IProducerHost _producers;
         readonly TownGrid _grid;
 
@@ -47,7 +48,7 @@ namespace AlphaTown.Gameplay.Buildings
             IEventBus events,
             IWallet wallet,
             IInventory barn,
-            IUnlockGate unlocks,
+            ITownProgression progression,
             IProducerHost producers)
         {
             _grid = Guard.NotNull(grid, nameof(grid));
@@ -56,7 +57,7 @@ namespace AlphaTown.Gameplay.Buildings
             _events = Guard.NotNull(events, nameof(events));
             _wallet = Guard.NotNull(wallet, nameof(wallet));
             _barn = Guard.NotNull(barn, nameof(barn));
-            _unlocks = Guard.NotNull(unlocks, nameof(unlocks));
+            _progression = Guard.NotNull(progression, nameof(progression));
             _producers = Guard.NotNull(producers, nameof(producers));
         }
 
@@ -91,7 +92,7 @@ namespace AlphaTown.Gameplay.Buildings
             if (!_database.TryGetBuilding(definitionId, out var definition))
                 return BuildingActionResult.UnknownDefinition;
 
-            if (!_unlocks.IsUnlocked(definition.UnlockLevel)) return BuildingActionResult.Locked;
+            if (!_progression.IsUnlocked(definition.UnlockLevel)) return BuildingActionResult.Locked;
 
             var placement = Map(_grid.Validate(new GridRect(origin, definition.Footprint)));
             if (placement != BuildingActionResult.Success) return placement;
@@ -107,7 +108,7 @@ namespace AlphaTown.Gameplay.Buildings
             if (!_database.TryGetBuilding(definitionId, out var definition))
                 return BuildingActionResult.UnknownDefinition;
 
-            if (!_unlocks.IsUnlocked(definition.UnlockLevel)) return BuildingActionResult.Locked;
+            if (!_progression.IsUnlocked(definition.UnlockLevel)) return BuildingActionResult.Locked;
 
             var rect = new GridRect(origin, definition.Footprint);
             var placement = Map(_grid.Validate(rect));
@@ -249,10 +250,26 @@ namespace AlphaTown.Gameplay.Buildings
                 var wasInitialBuild = building.Level <= 0;
                 building.CompleteConstruction();
                 AttachProducer(building);
+                GrantConstructionXp(building);
 
                 _events.Publish(new BuildingConstructionCompletedEvent(
                     building.InstanceId, building.Definition.Id, building.Level, wasInitialBuild));
             }
+        }
+
+        /// <summary>
+        /// Pays the level's XP now that it stands.
+        ///
+        /// On completion rather than on purchase, so a long build pays out when the player comes
+        /// back to it — and so a build cancelled or transformed midway never paid for something
+        /// that does not exist. Offline completions pay too, on the sync that resolves them.
+        /// </summary>
+        void GrantConstructionXp(BuildingInstance building)
+        {
+            var reward = building.Definition.GetLevel(building.Level).XpReward;
+            if (reward <= 0) return;
+
+            _progression.GrantXp(reward, XpSource.BuildingConstructed, building.InstanceId);
         }
 
         /// <summary>Restores from save. Call <see cref="Sync"/> afterwards to finish offline builds.</summary>
@@ -339,7 +356,7 @@ namespace AlphaTown.Gameplay.Buildings
             if (string.IsNullOrEmpty(nextId)) return BuildingActionResult.AlreadyMaxLevel;
 
             if (!_database.TryGetBuilding(nextId, out var next)) return BuildingActionResult.UnknownDefinition;
-            if (!_unlocks.IsUnlocked(next.UnlockLevel)) return BuildingActionResult.Locked;
+            if (!_progression.IsUnlocked(next.UnlockLevel)) return BuildingActionResult.Locked;
 
             // The replacement may have a different footprint, so it has to fit before anything is
             // charged. Its own cells are ignored — it is allowed to overlap where it already is.

@@ -141,11 +141,16 @@ Four field plots, 500 coins, 10 gems, 4 wheat, and a 50-space barn on an 8×8 pa
 
 | | |
 | --- | --- |
-| Crops | Wheat (60s), Corn (180s, town level 2) |
-| Chains | Wheat ▸ Flour (mill, level 2) ▸ Bread (bakery, level 3) |
+| Crops | Wheat (60s), Corn (180s, level 2), Eggs (240s, level 2) |
+| Chains | Wheat ▸ Flour (mill, level 2) ▸ Bread (bakery, level 3)<br>Flour + Eggs ▸ Cake (patisserie, level 4) |
+| Decorations | Flower bed (level 1) upgrading into a fountain (level 3) |
 | Orders | 4 helicopter slots, cooldowns 120/180/240/300s, 30% chance of a land deed |
 | Land | Three 8×8 parcels gated on 1, 2 and 3 deeds plus coins |
 | Levels | Eight, at 60 / 150 / 320 / 620 / 1100 / 1900 / 3200 / 5000 XP |
+
+Seven buildings: `field_plot`, `chicken_coop`, `mill_house`, `bakery`, `patisserie`, `flower_bed`,
+`fountain`. Every level of every one pays XP when it finishes — which is the only reason to buy a
+decoration, since it produces nothing and stores nothing.
 
 Every number is a placeholder chosen to make the loop legible inside a few minutes rather than a
 few days. Crops finish in a minute because a four-hour wheat field cannot be evaluated in a
@@ -180,9 +185,11 @@ clear, so the town stays draggable with one thumb.
 4. **Nothing is celebrated.** A level-up, a completed delivery and a failed tap all produce the
    same small grey toast. The three biggest moments in the loop are indistinguishable from an error
    message.
-5. **The barn fills and the game just stops.** The bottleneck works — it pushes you towards orders
-   — but it announces itself by silently refusing a harvest. The bar turns red, which is not
-   enough.
+5. **The barn fills, and it can never grow.** The bottleneck works — it pushes you towards orders
+   — but it announces itself by silently refusing a harvest, and *nothing in the game raises the
+   barn's level*. The storage definition authors five levels and only the one you start on is
+   reachable, so the pressure eventually becomes a wall. Six storable goods now compete for 75
+   slots. This is the most important missing building.
 6. **Coins have almost nowhere to go.** Buildings and land are the only sinks. Once you own the
    three buildings, coins accumulate with no decision attached to them.
 7. **The map is bigger than the game.** A 24×24 town with three unlockable parcels around a used

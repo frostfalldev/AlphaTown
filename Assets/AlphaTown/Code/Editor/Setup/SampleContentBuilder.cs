@@ -15,8 +15,9 @@ using UnityEngine;
 namespace AlphaTown.EditorTools.Setup
 {
     /// <summary>
-    /// Generates a starting town's worth of content: two crops, a mill, a bakery, an order board,
-    /// three parcels of land, and the database that ties them together.
+    /// Generates a starting town's worth of content: two crops and a hen coop, a mill, a bakery
+    /// and a patisserie, two decorations, an order board, three parcels of land, and the database
+    /// that ties them together.
     ///
     /// This exists because the slice needs numbers to be playable, and hand-authoring thirty
     /// interlinked assets before the loop can be tried once is the wrong order to find out the
@@ -132,6 +133,8 @@ namespace AlphaTown.EditorTools.Setup
             var corn = Item("corn", ItemCategory.Crop, coinValue: 6, xpValue: 4);
             var flour = Item("flour", ItemCategory.Ingredient, coinValue: 14, xpValue: 7);
             var bread = Item("bread", ItemCategory.FinishedGood, coinValue: 34, xpValue: 16);
+            var eggs = Item("eggs", ItemCategory.AnimalProduce, coinValue: 9, xpValue: 5);
+            var cake = Item("cake", ItemCategory.FinishedGood, coinValue: 88, xpValue: 38);
 
             // Deeds are unstorable on purpose: they are a currency wearing an item's clothes, and
             // charging barn space for the thing that buys more land would be a cruel joke.
@@ -154,6 +157,17 @@ namespace AlphaTown.EditorTools.Setup
                 inputs: new[] { new Ingredient(flour, 2), new Ingredient(corn, 1) },
                 outputs: new[] { new Ingredient(bread, 1) });
 
+            // Eggs need no input either — a coop is a field that happens to hold chickens. Slower
+            // than wheat, and worth three times as much, so it is the reason to want a second
+            // kind of plot rather than a fifth field.
+            var collectEggs = Recipe("collect_eggs", 240, unlockLevel: 2,
+                outputs: new[] { new Ingredient(eggs, 2) }, bonusOutputMax: 1);
+
+            // The deepest chain in the sample: two farms and a mill all feed this one building.
+            var bakeCake = Recipe("bake_cake", 480, unlockLevel: 4,
+                inputs: new[] { new Ingredient(flour, 2), new Ingredient(eggs, 3) },
+                outputs: new[] { new Ingredient(cake, 1) });
+
             // --- Producers ---------------------------------------------------------------------
             // Level 2 is where auto-replant arrives: the field keeps sowing itself once the player
             // has emptied it, which is the upgrade that turns a chore into a routine.
@@ -174,6 +188,20 @@ namespace AlphaTown.EditorTools.Setup
                 new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false)
             });
 
+            // Like a field, the coop gets auto-collect at level 2 — the upgrade that stops a
+            // second kind of plot from doubling the tapping.
+            var coop = Producer("coop", new[] { collectEggs }, new[]
+            {
+                new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1.3f, autoRepeat: true)
+            });
+
+            var patisserie = Producer("patisserie", new[] { bakeCake }, new[]
+            {
+                new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 3, parallelSlots: 2, speed: 1.15f, autoRepeat: false)
+            });
+
             // --- Storage and progression -------------------------------------------------------
             var barn = Storage("barn", new[] { 50, 75, 110, 160, 240 });
             var curve = Curve(coins, gems);
@@ -182,25 +210,63 @@ namespace AlphaTown.EditorTools.Setup
             var plot = Building("field_plot", BuildingCategory.Farming, 1, 1, field, unlockLevel: 1,
                 new[]
                 {
-                    new BuildingTier(constructionSeconds: 0, coins: coins, coinCost: 50),
-                    new BuildingTier(constructionSeconds: 30, coins: coins, coinCost: 250)
+                    new BuildingTier(constructionSeconds: 0, coins: coins, coinCost: 50, xpReward: 5),
+                    new BuildingTier(constructionSeconds: 30, coins: coins, coinCost: 250, xpReward: 30)
                 },
                 placeholder: new Color(0.45f, 0.34f, 0.22f));
 
             var millBuilding = Building("mill_house", BuildingCategory.Production, 2, 2, mill, unlockLevel: 2,
                 new[]
                 {
-                    new BuildingTier(constructionSeconds: 60, coins: coins, coinCost: 300),
-                    new BuildingTier(constructionSeconds: 180, coins: coins, coinCost: 1200)
+                    new BuildingTier(constructionSeconds: 60, coins: coins, coinCost: 300, xpReward: 30),
+                    new BuildingTier(constructionSeconds: 180, coins: coins, coinCost: 1200, xpReward: 110)
                 },
                 placeholder: new Color(0.72f, 0.66f, 0.52f));
 
             var bakeryBuilding = Building("bakery", BuildingCategory.Production, 2, 2, bakery, unlockLevel: 3,
                 new[]
                 {
-                    new BuildingTier(constructionSeconds: 120, coins: coins, coinCost: 900)
+                    new BuildingTier(constructionSeconds: 120, coins: coins, coinCost: 900, xpReward: 60)
                 },
                 placeholder: new Color(0.78f, 0.48f, 0.36f));
+
+            var coopBuilding = Building("chicken_coop", BuildingCategory.Farming, 2, 2, coop, unlockLevel: 2,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 60, coins: coins, coinCost: 400, xpReward: 25),
+                    new BuildingTier(constructionSeconds: 300, coins: coins, coinCost: 1400, xpReward: 90)
+                },
+                placeholder: new Color(0.86f, 0.74f, 0.46f));
+
+            var patisserieBuilding = Building("patisserie", BuildingCategory.Production, 3, 2, patisserie, unlockLevel: 4,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 300, coins: coins, coinCost: 3500, xpReward: 150),
+                    new BuildingTier(constructionSeconds: 900, coins: coins, coinCost: 9000, xpReward: 400)
+                },
+                placeholder: new Color(0.82f, 0.60f, 0.72f));
+
+            // Decorations produce nothing and store nothing. They exist to be somewhere for coins
+            // to go, and they pay XP for it — without that reward there would be no reason to
+            // raise one, which is why construction XP had to exist before these could.
+            //
+            // The fountain is built first because the flower bed upgrades into it: a small bed
+            // becoming a centrepiece is the one place the sample content exercises the
+            // transform-into-another-definition path that BuildingDefinition already supports.
+            var fountain = Building("fountain", BuildingCategory.Decoration, 2, 2, null, unlockLevel: 3,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 60, coins: coins, coinCost: 2000, xpReward: 120)
+                },
+                placeholder: new Color(0.62f, 0.74f, 0.86f));
+
+            var flowerBed = Building("flower_bed", BuildingCategory.Decoration, 1, 1, null, unlockLevel: 1,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 0, coins: coins, coinCost: 150, xpReward: 10)
+                },
+                placeholder: new Color(0.80f, 0.44f, 0.56f),
+                upgradesInto: fountain);
 
             // --- Orders ------------------------------------------------------------------------
             // Deeds drop from orders and nowhere else, which is what keeps expansion paced by
@@ -221,7 +287,11 @@ namespace AlphaTown.EditorTools.Setup
                 coinCost: 4000, requires: north, unlockLevel: 4, sortOrder: 2);
 
             // --- New game ----------------------------------------------------------------------
-            var newGame = NewGame(barnLevel: 1,
+            // Barn level 2 (75 slots) rather than 1 (50). Six storable goods now compete for that
+            // space, and nothing in the game can raise it afterwards — see the TODO on
+            // GameWorld.GrantStartingBarnLevel. Starting a level up buys room the player cannot
+            // yet earn.
+            var newGame = NewGame(barnLevel: 2,
                 items: new[] { new Ingredient(wheat, 4) },
                 buildings: new[]
                 {
@@ -240,13 +310,17 @@ namespace AlphaTown.EditorTools.Setup
             var database = AssetAuthoring.CreateOrLoad<GameDatabase>(Root + "/GameDatabase.asset");
             var serialized = AssetAuthoring.Edit(database);
 
-            Register(serialized, "_items", new Object[] { wheat, corn, flour, bread, deed });
-            Register(serialized, "_recipes", new Object[] { growWheat, growCorn, millFlour, bakeBread });
-            Register(serialized, "_producers", new Object[] { field, mill, bakery });
+            Register(serialized, "_items", new Object[] { wheat, corn, eggs, flour, bread, cake, deed });
+            Register(serialized, "_recipes",
+                new Object[] { growWheat, growCorn, collectEggs, millFlour, bakeBread, bakeCake });
+            Register(serialized, "_producers", new Object[] { field, coop, mill, bakery, patisserie });
             Register(serialized, "_storages", new Object[] { barn });
             Register(serialized, "_currencies", new Object[] { coins, gems });
             Register(serialized, "_orderTemplates", new Object[] { template });
-            Register(serialized, "_buildings", new Object[] { plot, millBuilding, bakeryBuilding });
+            Register(serialized, "_buildings", new Object[]
+            {
+                plot, coopBuilding, millBuilding, bakeryBuilding, patisserieBuilding, flowerBed, fountain
+            });
             Register(serialized, "_orderBoards", new Object[] { board });
             Register(serialized, "_expansions", new Object[] { north, east, northEast });
 
@@ -456,18 +530,22 @@ namespace AlphaTown.EditorTools.Setup
             public readonly int ConstructionSeconds;
             public readonly CurrencyDefinition Coins;
             public readonly int CoinCost;
+            public readonly int XpReward;
 
-            public BuildingTier(int constructionSeconds, CurrencyDefinition coins, int coinCost)
+            public BuildingTier(int constructionSeconds, CurrencyDefinition coins, int coinCost,
+                                int xpReward = 0)
             {
                 ConstructionSeconds = constructionSeconds;
                 Coins = coins;
                 CoinCost = coinCost;
+                XpReward = xpReward;
             }
         }
 
         static BuildingDefinition Building(string id, BuildingCategory category, int width, int height,
                                            ProducerDefinition producer, int unlockLevel,
-                                           BuildingTier[] tiers, Color placeholder)
+                                           BuildingTier[] tiers, Color placeholder,
+                                           BuildingDefinition upgradesInto = null)
         {
             var serialized = BeginAuthoring<BuildingDefinition>(
                 Root + "/Buildings/Building_" + id + ".asset", out var asset);
@@ -481,11 +559,13 @@ namespace AlphaTown.EditorTools.Setup
             AssetAuthoring.Set(serialized, "_footprintWidth", width);
             AssetAuthoring.Set(serialized, "_footprintHeight", height);
             AssetAuthoring.SetReference(serialized, "_producer", producer);
+            AssetAuthoring.SetReference(serialized, "_upgradesInto", upgradesInto);
             AssetAuthoring.SetColour(serialized, "_placeholderColour", placeholder);
 
             AssetAuthoring.SetArray(serialized, "_levels", tiers.Length, (element, index) =>
             {
                 AssetAuthoring.SetElement(element, "_constructionSeconds", tiers[index].ConstructionSeconds);
+                AssetAuthoring.SetElement(element, "_xpReward", tiers[index].XpReward);
 
                 var costs = element.FindPropertyRelative("_currencyCost");
                 if (costs == null) return;

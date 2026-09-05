@@ -2,6 +2,7 @@ using System;
 using AlphaTown.Core.Events;
 using AlphaTown.Core.Spatial;
 using AlphaTown.Data.Economy;
+using AlphaTown.Data.Progression;
 using AlphaTown.Gameplay.Buildings;
 using AlphaTown.Gameplay.World;
 using AlphaTown.Services.Timing;
@@ -251,6 +252,53 @@ namespace AlphaTown.Tests.EditMode
 
             _time.Advance(TimeSpan.FromSeconds(TestContent.BakeryLevel1BuildSeconds));
             Assert.That(bakery.Progress(_clock.UtcNowTicks), Is.EqualTo(1f).Within(0.001f));
+        }
+
+        /// <summary>
+        /// XP is paid when the building stands, not when it is bought. A decoration produces
+        /// nothing and stores nothing, so this reward is the entire reason to raise one.
+        /// </summary>
+        [Test]
+        public void ConstructionPaysItsXpOnCompletion()
+        {
+            var before = _world.Progression.TotalXp;
+
+            Assert.That(_world.Buildings.TryPlace(TestContent.Statue, GridPosition.Zero, out _),
+                Is.EqualTo(BuildingActionResult.Success));
+
+            // Still under scaffolding: nothing has been earned yet.
+            Assert.That(_world.Progression.TotalXp, Is.EqualTo(before));
+
+            _time.Advance(TimeSpan.FromSeconds(TestContent.StatueBuildSeconds));
+            _world.Sync();
+
+            Assert.That(_world.Progression.TotalXp - before, Is.EqualTo(TestContent.StatueXpReward));
+            Assert.That(_world.Progression.TotalXpFrom(XpSource.BuildingConstructed),
+                Is.EqualTo((long)TestContent.StatueXpReward));
+        }
+
+        /// <summary>A build that finished while the app was closed still pays on the next sync.</summary>
+        [Test]
+        public void ConstructionThatFinishedOfflinePaysToo()
+        {
+            _world.Buildings.TryPlace(TestContent.Statue, GridPosition.Zero, out _);
+
+            _time.Advance(TimeSpan.FromDays(3));
+            _world.Sync();
+
+            Assert.That(_world.Progression.TotalXpFrom(XpSource.BuildingConstructed),
+                Is.EqualTo((long)TestContent.StatueXpReward));
+        }
+
+        [Test]
+        public void ABuildingWithNoXpRewardPaysNothing()
+        {
+            var before = _world.Progression.TotalXp;
+
+            _world.Buildings.TryPlace(TestContent.Shed, new GridPosition(3, 3), out _);
+            _world.Sync();
+
+            Assert.That(_world.Progression.TotalXp, Is.EqualTo(before));
         }
     }
 }

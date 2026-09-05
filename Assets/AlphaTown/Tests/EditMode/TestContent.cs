@@ -34,6 +34,7 @@ namespace AlphaTown.Tests.EditMode
         public const string Workshop = "building.workshop";
         public const string BakeryBuilding = "building.bakery";
         public const string Hut = "building.hut";
+        public const string Statue = "building.statue";
         public const string Villa = "building.villa";
 
         public const int ShedCoinCost = 20;
@@ -41,6 +42,10 @@ namespace AlphaTown.Tests.EditMode
         public const int WorkshopFlourCost = 2;
         public const int BakeryLevel1CoinCost = 100;
         public const int BakeryLevel2CoinCost = 200;
+        public const int StatueCoinCost = 40;
+        public const int StatueBuildSeconds = 30;
+        public const int StatueXpReward = 25;
+
         public const int BakeryLevel1BuildSeconds = 60;
         public const int BakeryLevel2BuildSeconds = 120;
 
@@ -247,6 +252,18 @@ namespace AlphaTown.Tests.EditMode
                 Shed,
                 new GridSize(1, 1),
                 new FakeBuildingLevel(0, new[] { new CurrencyAmount(Coins, ShedCoinCost) })));
+
+            // Produces nothing, stores nothing, pays XP for being raised — a decoration.
+            database.WithBuilding(new FakeBuildingDefinition(
+                Statue,
+                new GridSize(1, 1),
+                new FakeBuildingLevel(
+                    StatueBuildSeconds,
+                    new[] { new CurrencyAmount(Coins, StatueCoinCost) },
+                    xpReward: StatueXpReward))
+            {
+                Category = BuildingCategory.Decoration
+            });
 
             database.WithBuilding(new FakeBuildingDefinition(
                 Workshop,

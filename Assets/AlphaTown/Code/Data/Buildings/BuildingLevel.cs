@@ -16,6 +16,10 @@ namespace AlphaTown.Data.Buildings
         [SerializeField] CurrencyEntry[] _currencyCost = Array.Empty<CurrencyEntry>();
         [SerializeField] ItemAmount[] _itemCost = Array.Empty<ItemAmount>();
 
+        [SerializeField, Min(0)]
+        [Tooltip("XP paid when this level finishes building. The only reason to buy a decoration.")]
+        int _xpReward;
+
         CurrencyAmount[] _cachedCurrencyCost;
         ItemStack[] _cachedItemCost;
 
@@ -28,6 +32,8 @@ namespace AlphaTown.Data.Buildings
 
         public IReadOnlyList<ItemStack> ItemCost =>
             _cachedItemCost ?? (_cachedItemCost = BuildItems(_itemCost));
+
+        public int XpReward => _xpReward;
 
         public void InvalidateCache()
         {

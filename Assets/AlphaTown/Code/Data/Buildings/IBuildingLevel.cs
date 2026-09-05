@@ -21,5 +21,14 @@ namespace AlphaTown.Data.Buildings
 
         /// <summary>Materials taken from the barn. Township-style builds want planks and nails.</summary>
         IReadOnlyList<ItemStack> ItemCost { get; }
+
+        /// <summary>
+        /// XP paid when this level finishes building.
+        ///
+        /// It is what makes a decoration worth buying: it produces nothing and stores nothing, so
+        /// without a reward for raising it there is no reason to spend the coins. Production
+        /// buildings can pay it too — the reward for a long build being over.
+        /// </summary>
+        int XpReward { get; }
     }
 }

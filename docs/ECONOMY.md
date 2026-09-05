@@ -171,6 +171,7 @@ Everything below is data, changeable without a code change:
 | Land cost and unlock order | `ExpansionDefinition` |
 | Auto-replant, queue size, speed | `ProducerDefinition` levels |
 | Barn capacity per level | `StorageDefinition` |
+| Market price per item | `ItemDefinition.SellValue` (0 = a fraction of `CoinValue`) |
 | Which barn level a building grants | `BuildingDefinition` level `StorageLevel` |
 | XP for finishing a build | `BuildingDefinition` level `XpReward` |
 
@@ -197,13 +198,40 @@ Three rules make it behave:
 It is a coin sink with a shape the others do not have: buying it does not add income, it removes a
 reason to stop playing.
 
+## The market
+
+Surplus goods sell for coins at about a third of their base worth, against the roughly 1.7x an
+order pays — so selling nets a fifth of delivering. **That gap is the design.** The barn filling is
+what sends a player to the order board, and that only works while delivering is obviously the
+better deal.
+
+What it buys is that a barn full of the wrong goods is never a dead end. There is always a move,
+and it always costs something.
+
+Two things it will not take:
+
+- **Anything that costs no barn space.** Land deeds are the expansion gate wearing an item's
+  clothes; a market that bought them for a coin each would quietly delete that gate.
+- **Anything worth nothing.** The one-coin minimum is there for rounding, not to conjure value
+  that was never there.
+
+It lives on the barn screen rather than a shop of its own, because there is no moment when a player
+wants to sell that is not the moment they are staring at a full barn.
+
+> **It is a faucet, not a sink.** Selling *pays* coins. The other half of a Township market — buying
+> goods you are short of, at a markup — is the piece that would actually drain coins, and it is not
+> built. See below.
+
 ## What is deliberately missing
 
 - **Rerolling an order costs nothing.** `OrderBoard.TryDiscard` is the hook;
   `CurrencySink.OrderReroll` is the reason code waiting for it.
-- **Sinks are buildings and land.** `BuildingPurchase`, `BuildingUpgrade` and
-  `ExpansionPurchase` are wired up. Land is gated by deeds rather than coins on purpose — see
-  [EXPANSION.md](EXPANSION.md) — so the market is the main coin sink still missing.
+- **Sinks are still only buildings and land.** `BuildingPurchase`, `BuildingUpgrade` and
+  `ExpansionPurchase` are wired up, and land is gated by deeds rather than coins on purpose — see
+  [EXPANSION.md](EXPANSION.md). Selling at the market is a faucet, so it did not close this gap.
+  **Buying** at the market would: paying a markup for a good you are one short of is a sink that
+  scales with how impatient the player is. `CurrencySink` has no code for it yet, which is the
+  first thing to add.
 - **Slot pacing has landed.** Each board slot now cools before refilling, authored per slot in
   `OrderBoardDefinition` — see [FARMING_AND_PACING.md](FARMING_AND_PACING.md).
 - **Speed-ups are not priced.** `Producer.TrySpeedUp` and `TryFinishNow` work; what they cost

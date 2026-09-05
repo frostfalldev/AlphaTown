@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using AlphaTown.Gameplay.Bootstrap;
 using AlphaTown.Gameplay.Commands;
+using AlphaTown.Gameplay.Inventory;
 using AlphaTown.UI.Selection;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -55,11 +57,14 @@ namespace AlphaTown.UI.Hud
         Label _toolBannerText;
         Label _toast;
         Overlay _screen;
+        IDisposable _overflowSubscription;
         float _secondsSinceRefresh;
         float _toastSecondsLeft;
 
         /// <summary>How long a message stays up. Long enough to read a short sentence.</summary>
         const float ToastSeconds = 2.5f;
+
+        const string BarnFullMessage = "Barn full — sell or deliver something.";
 
         void Awake()
         {
@@ -72,12 +77,32 @@ namespace AlphaTown.UI.Hud
         {
             if (_selection != null) _selection.Changed += OnSelectionChanged;
             if (_tool != null) _tool.Changed += OnToolChanged;
+
+            // A full barn used to refuse a harvest in silence — the only clue was a number
+            // turning red, which nobody is looking at mid-sweep. The simulation has always said
+            // so; nothing was listening.
+            if (_runner != null && _runner.Events != null)
+                _overflowSubscription = _runner.Events.Subscribe<InventoryOverflowEvent>(OnBarnOverflowed);
         }
 
         void OnDisable()
         {
             if (_selection != null) _selection.Changed -= OnSelectionChanged;
             if (_tool != null) _tool.Changed -= OnToolChanged;
+
+            _overflowSubscription?.Dispose();
+            _overflowSubscription = null;
+        }
+
+        /// <summary>
+        /// One message however many items were refused. A sickle sweep across a full barn raises
+        /// this once per field, and six identical toasts is noise, not information.
+        /// </summary>
+        void OnBarnOverflowed(InventoryOverflowEvent overflow)
+        {
+            if (_toastSecondsLeft > 0f && _toast.text == BarnFullMessage) return;
+
+            ShowToast(BarnFullMessage, success: false);
         }
 
         void Start()
@@ -139,7 +164,7 @@ namespace AlphaTown.UI.Hud
             UiKit.Round(_toast, 10f);
             root.Add(_toast);
 
-            _barnPanel = new BarnPanel(database);
+            _barnPanel = new BarnPanel(commands, database, Report);
             _orderPanel = new OrderPanel(commands, database, clock, Report);
             _buildMenu = new BuildMenu(commands, database, Report);
             _contextPanel = new ContextPanel(
@@ -295,15 +320,19 @@ namespace AlphaTown.UI.Hud
         {
             if (result.Success) _runner.RequestSave();
 
-            if (!string.IsNullOrEmpty(result.Message))
-            {
-                _toast.text = result.Message;
-                _toast.style.color = result.Success ? UiKit.Ink : UiKit.Warn;
-                _toast.style.display = DisplayStyle.Flex;
-                _toastSecondsLeft = ToastSeconds;
-            }
+            if (!string.IsNullOrEmpty(result.Message)) ShowToast(result.Message, result.Success);
 
             Refresh();
+        }
+
+        void ShowToast(string message, bool success)
+        {
+            if (_toast == null) return;
+
+            _toast.text = message;
+            _toast.style.color = success ? UiKit.Ink : UiKit.Warn;
+            _toast.style.display = DisplayStyle.Flex;
+            _toastSecondsLeft = ToastSeconds;
         }
     }
 }

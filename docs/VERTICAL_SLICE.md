@@ -127,7 +127,7 @@ stays fully navigable and there is no way to get stranded in the mode.
 | Build | Tap empty land ▸ **Build**, or the **Build** button |
 | Upgrade | Tap a building ▸ **Upgrade** (shows its cost, greys out when unaffordable) |
 | Deliver an order | **Orders** ▸ **Deliver** |
-| Check storage | **Barn** |
+| Check storage, and sell | **Barn** — each good shows what it fetches; sell one or the lot |
 
 Saving happens on every successful action (debounced two seconds), on the auto-save timer, on
 app pause and on quit. Closing and reopening resumes exactly where you left off, with everything
@@ -191,11 +191,12 @@ clear, so the town stays draggable with one thumb.
 4. **Nothing is celebrated.** A level-up, a completed delivery and a failed tap all produce the
    same small grey toast. The three biggest moments in the loop are indistinguishable from an error
    message.
-5. **The barn announces it is full by silently refusing a harvest.** The bottleneck itself now
-   works properly — the granary relieves it, and the pressure between granaries is the point — but
-   the only signal is the capacity number turning red. A refused harvest should say so.
-6. **Coins have almost nowhere to go.** Buildings and land are the only sinks. Once you own the
-   three buildings, coins accumulate with no decision attached to them.
+5. **Selling is the only thing you can do with coins besides build.** The market pays for surplus,
+   which stops a full barn being a dead end, but it is a faucet — it hands coins out. Nothing
+   drains them except buildings and land, so late in a session coins pile up with no decision
+   attached. Buying goods at a markup is the missing half.
+6. **Nothing is priced in gems.** The hard currency is decoration: no speed-ups, no purchases.
+   The one thing a player wants while a timer runs does not exist.
 7. **The map is bigger than the game.** A 24×24 town with three unlockable parcels around a used
    patch reads as mostly empty, which makes early expansion feel like buying more nothing.
 
@@ -214,8 +215,9 @@ Roughly in order of value per hour spent:
    `TrySpeedUp` already exist; they need a price and a button.
 5. **Harvest All**, driven by `TownCommands.CollectHarvestable`, for when the town outgrows a
    comfortable swipe.
-6. **A market stall** — sell surplus goods for coins at a poor rate. Gives the barn an escape valve
-   and stops a full barn from being a dead end.
+6. **Buying at the market** — the other half of selling, and the coin sink the game still lacks.
+   Paying a markup for a good you are one short of drains coins in proportion to impatience,
+   which is exactly the shape a sink wants.
 7. **Named order customers**, even as placeholder portraits and three lines of flavour text.
 8. **Shrink the map, or seed more of it.** Either start on a smaller grid or place decorations and
    obstacles in the locked parcels so unlocking one reveals something.

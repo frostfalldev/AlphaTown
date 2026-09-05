@@ -165,6 +165,31 @@ namespace AlphaTown.Gameplay.Commands
                 : CommandResult.Fail("Could not deliver that.");
         }
 
+        // --- Market -----------------------------------------------------------------------------
+
+        /// <summary>
+        /// Sells goods for coins at the market's rate.
+        ///
+        /// Worth saying plainly when it refuses: the two things the market will not take — goods
+        /// that cost no barn space, and goods worth nothing — look identical from a screen, and a
+        /// button that does nothing without explanation reads as broken.
+        /// </summary>
+        public CommandResult Sell(string itemId, int count)
+        {
+            if (count <= 0) return CommandResult.Fail("Nothing selected.");
+            if (_world.Barn.CountOf(itemId) < count) return CommandResult.Fail("You do not have that many.");
+
+            if (_world.Market.UnitPrice(itemId) <= 0)
+                return CommandResult.Fail(DisplayNameOf(itemId) + " is not for sale.");
+
+            var paid = _world.Market.Sell(itemId, count);
+            return paid > 0
+                ? CommandResult.Ok("Sold " + count + " for " + paid + ".")
+                : CommandResult.Fail("Could not sell that.");
+        }
+
+        public CommandResult SellAll(string itemId) => Sell(itemId, _world.Barn.CountOf(itemId));
+
         // --- Land -------------------------------------------------------------------------------
 
         public CommandResult UnlockLand(string expansionId)
@@ -201,6 +226,13 @@ namespace AlphaTown.Gameplay.Commands
 
             return fallback?.Id;
         }
+
+        /// <summary>
+        /// The best name available without a localisation table. Falls back to the id, which is
+        /// still more use in a failure message than nothing.
+        /// </summary>
+        string DisplayNameOf(string itemId) =>
+            _database.TryGetItem(itemId, out var item) ? item.DisplayNameKey : itemId;
 
         public static string Describe(BuildingActionResult result)
         {

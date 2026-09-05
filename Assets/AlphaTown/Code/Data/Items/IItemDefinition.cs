@@ -28,5 +28,14 @@ namespace AlphaTown.Data.Items
 
         /// <summary>Base XP worth, scaled the same way as <see cref="CoinValue"/>.</summary>
         int XpValue { get; }
+
+        /// <summary>
+        /// What the market pays per unit. Zero falls back to a fraction of <see cref="CoinValue"/>.
+        ///
+        /// Separate from <see cref="CoinValue"/> so the market can be priced against orders rather
+        /// than with them — making a good deliberately poor to sell is how you push a player to
+        /// deliver it instead, and that is a per-item decision.
+        /// </summary>
+        int SellValue { get; }
     }
 }

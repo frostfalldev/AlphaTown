@@ -18,6 +18,10 @@ namespace AlphaTown.Data.Items
 
         [SerializeField, Min(0)] int _xpValue = 1;
 
+        [SerializeField, Min(0)]
+        [Tooltip("Market price per unit. 0 falls back to a fraction of the coin value.")]
+        int _sellValue;
+
         [Header("Presentation")]
         [Tooltip("Icon is presentation only. The simulation never touches it.")]
         [SerializeField] Sprite _icon;
@@ -28,6 +32,7 @@ namespace AlphaTown.Data.Items
         public bool IsStorable => _isStorable;
         public int CoinValue => _coinValue;
         public int XpValue => _xpValue;
+        public int SellValue => _sellValue;
         public Sprite Icon => _icon;
 
 #if UNITY_EDITOR

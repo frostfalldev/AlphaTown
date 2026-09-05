@@ -81,6 +81,7 @@ namespace AlphaTown.Gameplay.World
             Barn = new BarnInventory(database, storage, events);
             Wallet = wallet;
             Progression = progression;
+            Market = new Market(database, Barn, wallet, events);
 
             var generator = new OrderGenerator(database, random ?? new Random());
             var boardDefinition = FindBoardDefinition(database, OrderKind.Helicopter)
@@ -109,6 +110,9 @@ namespace AlphaTown.Gameplay.World
         public ICurrencyLedger Ledger => _ledger;
 
         public TownProgression Progression { get; }
+
+        /// <summary>Sells surplus for coins, at a rate poor enough to keep orders worth doing.</summary>
+        public Market Market { get; }
 
         /// <summary>TODO: train and ship boards join this as separate OrderBoard instances.</summary>
         public OrderBoard HelicopterOrders { get; }

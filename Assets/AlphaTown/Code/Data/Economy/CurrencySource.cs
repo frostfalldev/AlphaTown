@@ -19,6 +19,9 @@ namespace AlphaTown.Data.Economy
         QuestReward = 3,
         AchievementReward = 4,
 
+        /// <summary>Selling surplus goods at the market. A weak faucet on purpose.</summary>
+        ItemSale = 5,
+
         /// <summary>Real money. Must reconcile against store receipts.</summary>
         IapPurchase = 10,
         AdReward = 11,

@@ -171,5 +171,170 @@ namespace AlphaTown.Tests.EditMode
             Assert.That(result.Success, Is.True);
             Assert.That(_world.Barn.CountOf(TestContent.Bread), Is.EqualTo(0));
         }
+
+        // --- Buying ---------------------------------------------------------------------------
+
+        [Test]
+        public void BuyingTakesCoinsAndFillsTheBarn()
+        {
+            _world.Wallet.Grant(TestContent.Coins, 1000, CurrencySource.DebugGrant);
+            var before = _world.Wallet.BalanceOf(TestContent.Coins);
+
+            var spent = _world.Market.Buy(TestContent.Bread, 2);
+
+            Assert.That(spent, Is.GreaterThan(0));
+            Assert.That(_world.Barn.CountOf(TestContent.Bread), Is.EqualTo(2));
+            Assert.That(_world.Wallet.BalanceOf(TestContent.Coins), Is.EqualTo(before - spent));
+        }
+
+        /// <summary>
+        /// The property the whole feature rests on. If buying an item costs less than an order
+        /// pays for it, production is optional and the game is a spreadsheet.
+        /// </summary>
+        [Test]
+        public void BuyingCostsMoreThanAnOrderPaysForTheSameGoods()
+        {
+            var buy = _world.Market.BuyPrice(TestContent.Bread);
+
+            // Orders pay a multiple of the item's coin value; buying has to sit above that.
+            Assert.That(buy, Is.GreaterThan(TestContent.BreadCoinValue * 2),
+                "buying to fill an order must lose coins, or it becomes the way to play");
+        }
+
+        /// <summary>
+        /// No round trip may profit. An item priced generously to sell must still cost more to
+        /// buy back, whatever the content says, or the market is a money printer.
+        /// </summary>
+        [Test]
+        public void BuyingBackAlwaysCostsMoreThanSellingPaid()
+        {
+            var database = TestContent.Build();
+
+            // Deliberately perverse content: a sell price far above the item's face value.
+            database.WithItem(new FakeItem("gilded", coinValue: 4, sellValue: 500));
+
+            var world = new GameWorld(database, new GameClock(new ManualTimeSource()), new EventBus());
+            world.InitialiseNewPlayer();
+
+            Assert.That(world.Market.BuyPrice("gilded"),
+                Is.GreaterThan(world.Market.UnitPrice("gilded")));
+        }
+
+        /// <summary>
+        /// The most important guard here. Land is gated by deeds rather than coins by design; a
+        /// market that sold deeds would turn expansion straight back into a coin purchase.
+        /// </summary>
+        [Test]
+        public void LandDeedsCannotBeBought()
+        {
+            _world.Wallet.Grant(TestContent.Coins, 100000, CurrencySource.DebugGrant);
+
+            Assert.That(_world.Market.BuyPrice(TestContent.Deed), Is.EqualTo(0));
+            Assert.That(_world.Market.Buy(TestContent.Deed, 1), Is.EqualTo(0));
+            Assert.That(_world.Barn.CountOf(TestContent.Deed), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BuyingWhatYouCannotAffordDoesNothing()
+        {
+            _world.Wallet.ResetTo(Array.Empty<CurrencyAmount>());
+
+            Assert.That(_world.Market.Buy(TestContent.Bread, 1), Is.EqualTo(0));
+            Assert.That(_world.Barn.CountOf(TestContent.Bread), Is.EqualTo(0));
+        }
+
+        /// <summary>Charging for goods that then did not fit would be the worst bug here.</summary>
+        [Test]
+        public void BuyingMoreThanTheBarnHoldsDoesNothing()
+        {
+            _world.Wallet.Grant(TestContent.Coins, 100000, CurrencySource.DebugGrant);
+            var before = _world.Wallet.BalanceOf(TestContent.Coins);
+
+            Assert.That(_world.Market.Buy(TestContent.Bread, _world.Barn.Capacity + 1), Is.EqualTo(0));
+            Assert.That(_world.Wallet.BalanceOf(TestContent.Coins), Is.EqualTo(before));
+            Assert.That(_world.Barn.CountOf(TestContent.Bread), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void PurchasesAreAttributedToTheirOwnSink()
+        {
+            _world.Wallet.Grant(TestContent.Coins, 1000, CurrencySource.DebugGrant);
+            var spent = _world.Market.Buy(TestContent.Bread, 1);
+
+            Assert.That(_world.Ledger.TotalTo(TestContent.Coins, CurrencySink.MarketPurchase),
+                Is.EqualTo((long)spent));
+        }
+
+        [Test]
+        public void BuyingRaisesAnEvent()
+        {
+            _world.Wallet.Grant(TestContent.Coins, 1000, CurrencySource.DebugGrant);
+
+            var seen = 0;
+            using (_events.Subscribe<ItemBoughtEvent>(_ => seen++))
+            {
+                _world.Market.Buy(TestContent.Bread, 1);
+            }
+
+            Assert.That(seen, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        /// A world whose orders always ask for four of one thing, so "buys exactly the shortfall"
+        /// is observable at all — the default template asks for one, where every shortfall is the
+        /// whole request.
+        /// </summary>
+        (GameWorld World, TownCommands Commands) BulkOrderWorld()
+        {
+            var template = TestContent.SingleBreadTemplate();
+            template.MinQuantityPerItem = 4;
+            template.MaxQuantityPerItem = 4;
+
+            var database = TestContent.Build(orderTemplate: template);
+            var world = new GameWorld(database, _clock, _events, new Random(9));
+            world.InitialiseNewPlayer();
+            world.Wallet.Grant(TestContent.Coins, 100000, CurrencySource.DebugGrant);
+
+            return (world, new TownCommands(world, database, _clock));
+        }
+
+        /// <summary>The one button that exists: close the gap on an order, exactly.</summary>
+        [Test]
+        public void BuyingAnOrderShortfallBuysExactlyWhatIsMissing()
+        {
+            var (world, commands) = BulkOrderWorld();
+
+            var order = world.HelicopterOrders.Orders[0];
+            var request = order.Requests[0];
+            world.Barn.Add(request.ItemId, 1);
+
+            var result = commands.BuyShortfall(order.OrderId, request.ItemId);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(world.Barn.CountOf(request.ItemId), Is.EqualTo(request.Count),
+                "it should top the barn up to the request, not double it");
+        }
+
+        /// <summary>Having enough already is not a purchase, however much money is on the table.</summary>
+        [Test]
+        public void BuyingAShortfallYouDoNotHaveIsRefused()
+        {
+            var (world, commands) = BulkOrderWorld();
+
+            var order = world.HelicopterOrders.Orders[0];
+            var request = order.Requests[0];
+            world.Barn.Add(request.ItemId, request.Count);
+
+            var spentBefore = world.Wallet.BalanceOf(TestContent.Coins);
+
+            Assert.That(commands.BuyShortfall(order.OrderId, request.ItemId).Success, Is.False);
+            Assert.That(world.Wallet.BalanceOf(TestContent.Coins), Is.EqualTo(spentBefore));
+        }
+
+        [Test]
+        public void BuyingAShortfallOnAnOrderThatIsGoneIsRefused()
+        {
+            Assert.That(_commands.BuyShortfall("order_nope", TestContent.Bread).Success, Is.False);
+        }
     }
 }

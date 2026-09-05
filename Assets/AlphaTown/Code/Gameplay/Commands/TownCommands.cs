@@ -190,6 +190,63 @@ namespace AlphaTown.Gameplay.Commands
 
         public CommandResult SellAll(string itemId) => Sell(itemId, _world.Barn.CountOf(itemId));
 
+        /// <summary>
+        /// Buys goods into the barn at the market's markup.
+        ///
+        /// The refusals are worth spelling out. "Not stocked" and "cannot afford" and "no room"
+        /// all look like a dead button otherwise, and the last of them is the one a player will
+        /// hit most: the barn being full is exactly when they want to buy the thing that finishes
+        /// an order.
+        /// </summary>
+        public CommandResult Buy(string itemId, int count)
+        {
+            if (count <= 0) return CommandResult.Fail("Nothing to buy.");
+
+            var unit = _world.Market.BuyPrice(itemId);
+            if (unit <= 0) return CommandResult.Fail(DisplayNameOf(itemId) + " is not for sale here.");
+
+            if (_world.Barn.RoomFor(itemId) < count)
+                return CommandResult.Fail("The barn has no room for that.");
+
+            var cost = unit * count;
+            if (!_world.Wallet.CanAfford(SoftCurrencyId, cost))
+                return CommandResult.Fail("Not enough coins — that costs " + cost + ".");
+
+            return _world.Market.Buy(itemId, count) > 0
+                ? CommandResult.Ok("Bought " + count + " for " + cost + ".")
+                : CommandResult.Fail("Could not buy that.");
+        }
+
+        /// <summary>
+        /// Buys exactly what an order is short of. The only place buying really makes sense, and
+        /// the moment the player is looking at the shortfall.
+        /// </summary>
+        public CommandResult BuyShortfall(string orderId, string itemId)
+        {
+            if (!_world.HelicopterOrders.TryGetOrder(orderId, out var order))
+                return CommandResult.Fail("That order is gone.");
+
+            var needed = 0;
+            for (var i = 0; i < order.Requests.Count; i++)
+            {
+                if (order.Requests[i].ItemId == itemId) needed = order.Requests[i].Count;
+            }
+
+            var shortfall = needed - _world.Barn.CountOf(itemId);
+            return shortfall <= 0
+                ? CommandResult.Fail("You already have enough.")
+                : Buy(itemId, shortfall);
+        }
+
+        string SoftCurrencyId
+        {
+            get
+            {
+                var currency = _database.SoftCurrency;
+                return currency != null ? currency.Id : string.Empty;
+            }
+        }
+
         // --- Land -------------------------------------------------------------------------------
 
         public CommandResult UnlockLand(string expansionId)

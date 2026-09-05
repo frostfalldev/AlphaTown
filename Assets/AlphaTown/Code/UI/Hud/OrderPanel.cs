@@ -1,6 +1,7 @@
 using System;
 using AlphaTown.Core.Timing;
 using AlphaTown.Data.Catalog;
+using AlphaTown.Data.Items;
 using AlphaTown.Gameplay.Commands;
 using AlphaTown.Gameplay.Orders;
 using AlphaTown.Gameplay.World;
@@ -14,6 +15,11 @@ namespace AlphaTown.UI.Hud
     /// This is the loop's closing move — the sink that takes the goods away and the source that
     /// pays the coins and XP back. Every request line is coloured by whether the player has it, so
     /// the decision "what do I grow next" is answerable from this one screen.
+    ///
+    /// A line the barn cannot cover offers to buy the difference. Buying belongs here rather than
+    /// in a shop of its own because this is the moment a player discovers they are short — and it
+    /// is priced to lose money against the payout, so it stays a way to skip a wait rather than a
+    /// way to play.
     /// </summary>
     public sealed class OrderPanel
     {
@@ -86,16 +92,10 @@ namespace AlphaTown.UI.Hud
 
             card.Add(header);
 
-            var requests = UiKit.Row(14f);
+            var requests = UiKit.Column(6f);
             for (var i = 0; i < order.Requests.Count; i++)
             {
-                var request = order.Requests[i];
-                var held = world.Barn.CountOf(request.ItemId);
-                var line = UiKit.Text(
-                    held + "/" + request.Count + " " + DisplayNames.ForItem(_database, request.ItemId), 22);
-
-                line.style.color = held >= request.Count ? UiKit.Accent : UiKit.Muted;
-                requests.Add(line);
+                requests.Add(BuildRequestLine(world, order, order.Requests[i]));
             }
 
             card.Add(requests);
@@ -106,6 +106,53 @@ namespace AlphaTown.UI.Hud
             card.Add(deliver);
 
             return card;
+        }
+
+        /// <summary>
+        /// One request, and — when the barn is short — what closing the gap would cost.
+        ///
+        /// The price is on the button rather than hidden behind it, because the answer to "should
+        /// I buy this?" is nearly always no, and the player deserves to see that before tapping.
+        /// </summary>
+        VisualElement BuildRequestLine(GameWorld world, Order order, ItemStack request)
+        {
+            var row = UiKit.Row(10f);
+            row.style.justifyContent = Justify.SpaceBetween;
+
+            var held = world.Barn.CountOf(request.ItemId);
+            var covered = held >= request.Count;
+
+            var line = UiKit.Text(
+                held + "/" + request.Count + " " + DisplayNames.ForItem(_database, request.ItemId), 22);
+
+            line.style.color = covered ? UiKit.Accent : UiKit.Muted;
+            row.Add(line);
+
+            if (covered) return row;
+
+            var shortfall = request.Count - held;
+            var cost = world.Market.PriceToBuy(request.ItemId, shortfall);
+            if (cost <= 0) return row;
+
+            var buy = UiKit.Action("Buy " + shortfall + "  " + cost, () =>
+                _report?.Invoke(_commands.BuyShortfall(order.OrderId, request.ItemId)));
+
+            buy.style.minHeight = UiKit.TouchTarget * 0.7f;
+            buy.style.fontSize = 22;
+            UiKit.SetEnabled(buy, world.Wallet.CanAfford(SoftCurrencyId, cost) &&
+                                  world.Barn.RoomFor(request.ItemId) >= shortfall);
+
+            row.Add(buy);
+            return row;
+        }
+
+        string SoftCurrencyId
+        {
+            get
+            {
+                var currency = _database != null ? _database.SoftCurrency : null;
+                return currency != null ? currency.Id : string.Empty;
+            }
         }
 
         string DescribeRewards(Order order)

@@ -218,20 +218,39 @@ Two things it will not take:
 It lives on the barn screen rather than a shop of its own, because there is no moment when a player
 wants to sell that is not the moment they are staring at a full barn.
 
-> **It is a faucet, not a sink.** Selling *pays* coins. The other half of a Township market — buying
-> goods you are short of, at a markup — is the piece that would actually drain coins, and it is not
-> built. See below.
+### Buying, and why it does not break the game
+
+Buying is the other direction, and the loop's only real coin sink. It is priced at 250% of an
+item's coin value — **above** the ~1.7x an order pays — so filling an order with bought goods loses
+money. That single inequality is what keeps production from becoming optional: buying is a tax on
+impatience, never a strategy.
+
+What the player gets for the loss is the XP, the deed roll and the freed slot. Reasons enough to
+skip a wait; not reasons to stop farming. Drop the markup below the order multiplier and the game
+becomes a spreadsheet.
+
+Three guards, all tested:
+
+- **Land deeds cannot be bought.** Land is gated by deeds rather than coins by design — see
+  [EXPANSION.md](EXPANSION.md) — and a market that sold deeds would turn expansion straight back
+  into a coin purchase. They cost no barn space, which is what marks them as not merchandise.
+- **No round trip can profit.** The buy price is forced above the sell price whatever the content
+  says, so an item priced generously to sell cannot be bought back for less. An economy with a
+  money printer in it has no other numbers worth tuning.
+- **Nothing is charged for goods that will not fit.** Room, price and balance are all checked
+  before either half of the exchange moves.
+
+The only place to buy is the order card, on a request line the barn cannot cover, showing the
+price on the button rather than behind it — because the answer to "should I buy this?" is nearly
+always no, and the player deserves to see that before tapping.
 
 ## What is deliberately missing
 
 - **Rerolling an order costs nothing.** `OrderBoard.TryDiscard` is the hook;
   `CurrencySink.OrderReroll` is the reason code waiting for it.
-- **Sinks are still only buildings and land.** `BuildingPurchase`, `BuildingUpgrade` and
-  `ExpansionPurchase` are wired up, and land is gated by deeds rather than coins on purpose — see
-  [EXPANSION.md](EXPANSION.md). Selling at the market is a faucet, so it did not close this gap.
-  **Buying** at the market would: paying a markup for a good you are one short of is a sink that
-  scales with how impatient the player is. `CurrencySink` has no code for it yet, which is the
-  first thing to add.
+- **Sinks are buildings, land and the market.** `BuildingPurchase`, `BuildingUpgrade`,
+  `ExpansionPurchase` and `MarketPurchase` are all wired up. Land stays gated by deeds rather than
+  coins on purpose — see [EXPANSION.md](EXPANSION.md).
 - **Slot pacing has landed.** Each board slot now cools before refilling, authored per slot in
   `OrderBoardDefinition` — see [FARMING_AND_PACING.md](FARMING_AND_PACING.md).
 - **Speed-ups are not priced.** `Producer.TrySpeedUp` and `TryFinishNow` work; what they cost

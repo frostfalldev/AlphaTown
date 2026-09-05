@@ -1,0 +1,21 @@
+{
+    "name": "AlphaTown.UI.InputSystem",
+    "rootNamespace": "AlphaTown.UI.Interaction",
+    "references": [
+        "AlphaTown.Core",
+        "AlphaTown.UI",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "ENABLE_INPUT_SYSTEM",
+        "!ENABLE_LEGACY_INPUT_MANAGER"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

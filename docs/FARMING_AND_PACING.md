@@ -11,9 +11,18 @@ An animal is a producer that eats, and that one input is the whole difference be
 field. A field turns time into goods; livestock turns crops into better ones.
 
 ```
-Wheat ─▶ Feed ─▶ Eggs ─▶ Cake
-            └──▶ Milk ─▶ Cheese
+Wheat ─▶ Feed ─▶ Eggs ──────────────▶ Cake        (patisserie, with flour)
+            ├──▶ Milk ──────────────▶ Cheese      (creamery)
+            ├──▶ Goat milk ────────▶ Goat cheese  (creamery)
+            ├──▶ Duck meat ────────▶ Roast duck   (kitchen, with corn)
+            └──▶ Bacon ────────────▶ Bacon pie    (kitchen, with flour and cheese)
 ```
+
+Every branch terminates in something a board wants. That is a rule, not a coincidence: an animal
+whose produce no recipe consumes can only be sold back at the market's 35%, which makes the pen a
+worse deal the more it cost — the exact opposite of what the level ladder is promising. The
+content validator warns on any animal good that is made and then wanted by nothing, because this
+was wrong in the shipped content until the kitchen existed to fix it.
 
 Nothing in the simulation knows what an animal is. A coop is a producer whose recipe happens to
 have an input, so it runs through exactly the machinery a bakery does — feed consumed when the

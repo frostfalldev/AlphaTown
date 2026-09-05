@@ -16,8 +16,8 @@ namespace AlphaTown.EditorTools.Setup
 {
     /// <summary>
     /// Generates a starting town's worth of content: two crops, five kinds of livestock, a mill,
-    /// a creamery, a bakery and a patisserie, a granary, two decorations, three delivery boards,
-    /// three parcels of land, and the database that ties them together.
+    /// a creamery, a bakery, a patisserie and a kitchen, a granary, two decorations, three
+    /// delivery boards, three parcels of land, and the database that ties them together.
     ///
     /// This exists because the slice needs numbers to be playable, and hand-authoring thirty
     /// interlinked assets before the loop can be tried once is the wrong order to find out the
@@ -79,10 +79,12 @@ namespace AlphaTown.EditorTools.Setup
             _written = 0;
             _skipped = 0;
 
+            GameDatabase database = null;
+
             AssetDatabase.StartAssetEditing();
             try
             {
-                Generate();
+                database = Generate();
             }
             finally
             {
@@ -98,6 +100,16 @@ namespace AlphaTown.EditorTools.Setup
                           ? "\n  Existing assets are never overwritten. Use AlphaTown ▸ Content ▸ " +
                             "Rebuild Sample Content (overwrite) to reset them to the shipped defaults."
                           : string.Empty));
+
+            // Validate what was written rather than what is in this file. The generator merges
+            // into whatever database already exists, so the graph the game will load is the union
+            // of generated and hand-authored content — and the union is the only one worth
+            // checking. A chain that no longer joins up should be said out loud here, while the
+            // author is still looking at the console, not found by a player.
+            if (database == null) return;
+
+            database.Reindex();
+            ContentValidationMenu.Report(database);
         }
 
         /// <summary>
@@ -122,7 +134,7 @@ namespace AlphaTown.EditorTools.Setup
             return AssetAuthoring.Edit(asset);
         }
 
-        static void Generate()
+        static GameDatabase Generate()
         {
             // --- Currency ----------------------------------------------------------------------
             var coins = Currency("coins", CurrencyKind.Soft, startingAmount: 500);
@@ -146,6 +158,15 @@ namespace AlphaTown.EditorTools.Setup
             var bacon = Item("bacon", ItemCategory.AnimalProduce, coinValue: 44, xpValue: 20);
             var cheese = Item("cheese", ItemCategory.FinishedGood, coinValue: 52, xpValue: 24);
             var cake = Item("cake", ItemCategory.FinishedGood, coinValue: 88, xpValue: 38);
+
+            // Every animal has to lead somewhere. Goat milk, duck meat and bacon were being made
+            // and then wanted by nothing, which meant the three most expensive pens in the game
+            // produced barn clutter — the player's only move was to sell the output back at the
+            // market for a fraction of what the pen cost. These three close those chains, and each
+            // is priced around 1.6x its inputs, the same margin cheese and cake already carry.
+            var goatCheese = Item("goat_cheese", ItemCategory.FinishedGood, coinValue: 86, xpValue: 38);
+            var roastDuck = Item("roast_duck", ItemCategory.FinishedGood, coinValue: 62, xpValue: 28);
+            var baconPie = Item("bacon_pie", ItemCategory.FinishedGood, coinValue: 250, xpValue: 105);
 
             // Deeds are unstorable on purpose: they are a currency wearing an item's clothes, and
             // charging barn space for the thing that buys more land would be a cruel joke.
@@ -206,6 +227,23 @@ namespace AlphaTown.EditorTools.Setup
                 inputs: new[] { new Ingredient(flour, 2), new Ingredient(eggs, 3) },
                 outputs: new[] { new Ingredient(cake, 1) });
 
+            // The creamery's second recipe, so the building the cheese chain already needed is
+            // also the answer to the goat pen rather than a third shed.
+            var makeGoatCheese = Recipe("make_goat_cheese", 540, unlockLevel: 4,
+                inputs: new[] { new Ingredient(goatMilk, 3) },
+                outputs: new[] { new Ingredient(goatCheese, 1) });
+
+            // The kitchen is where meat becomes worth raising. Both recipes want something from
+            // outside the pen that feeds them — corn for the duck, flour and cheese for the pie —
+            // so the late animals pull the early chains along instead of replacing them.
+            var cookRoastDuck = Recipe("cook_roast_duck", 600, unlockLevel: 5,
+                inputs: new[] { new Ingredient(duckMeat, 1), new Ingredient(corn, 1) },
+                outputs: new[] { new Ingredient(roastDuck, 1) });
+
+            var bakeBaconPie = Recipe("bake_bacon_pie", 1200, unlockLevel: 6,
+                inputs: new[] { new Ingredient(bacon, 2), new Ingredient(flour, 1), new Ingredient(cheese, 1) },
+                outputs: new[] { new Ingredient(baconPie, 1) });
+
             // --- Producers ---------------------------------------------------------------------
             // Level 2 is where auto-replant arrives: the field keeps sowing itself once the player
             // has emptied it, which is the upgrade that turns a chore into a routine.
@@ -258,7 +296,7 @@ namespace AlphaTown.EditorTools.Setup
                 new ProducerTier(queueCapacity: 2, parallelSlots: 2, speed: 1.3f, autoRepeat: true)
             });
 
-            var creamery = Producer("creamery", new[] { makeCheese }, new[]
+            var creamery = Producer("creamery", new[] { makeCheese, makeGoatCheese }, new[]
             {
                 new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
                 new ProducerTier(queueCapacity: 3, parallelSlots: 2, speed: 1.2f, autoRepeat: false)
@@ -268,6 +306,12 @@ namespace AlphaTown.EditorTools.Setup
             {
                 new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
                 new ProducerTier(queueCapacity: 3, parallelSlots: 2, speed: 1.15f, autoRepeat: false)
+            });
+
+            var kitchen = Producer("kitchen", new[] { cookRoastDuck, bakeBaconPie }, new[]
+            {
+                new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 4, parallelSlots: 2, speed: 1.2f, autoRepeat: false)
             });
 
             // --- Storage and progression -------------------------------------------------------
@@ -355,6 +399,17 @@ namespace AlphaTown.EditorTools.Setup
                     new BuildingTier(constructionSeconds: 900, coins: coins, coinCost: 7500, xpReward: 340)
                 },
                 placeholder: new Color(0.72f, 0.80f, 0.70f));
+
+            // Opens with the duck pond, because a pond whose output has nowhere to go is a pond
+            // nobody builds twice.
+            var kitchenBuilding = Building("kitchen", BuildingCategory.Production, 3, 2, kitchen,
+                unlockLevel: 5,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 420, coins: coins, coinCost: 5000, xpReward: 200),
+                    new BuildingTier(constructionSeconds: 1500, coins: coins, coinCost: 15000, xpReward: 560)
+                },
+                placeholder: new Color(0.84f, 0.56f, 0.40f));
 
             // Decorations produce nothing and store nothing. They exist to be somewhere for coins
             // to go, and they pay XP for it — without that reward there would be no reason to
@@ -471,17 +526,19 @@ namespace AlphaTown.EditorTools.Setup
             Register(serialized, "_items", new Object[]
             {
                 wheat, corn, feed, eggs, milk, goatMilk, duckMeat, bacon,
-                flour, bread, cheese, cake, deed
+                flour, bread, cheese, cake, goatCheese, roastDuck, baconPie, deed
             });
             Register(serialized, "_recipes", new Object[]
             {
                 growWheat, growCorn, millFeed,
                 collectEggs, collectMilk, collectGoatMilk, raiseDucks, raisePigs,
-                millFlour, makeCheese, bakeBread, bakeCake
+                millFlour, makeCheese, makeGoatCheese, bakeBread, bakeCake,
+                cookRoastDuck, bakeBaconPie
             });
             Register(serialized, "_producers", new Object[]
             {
-                field, coop, dairy, goats, ducks, pigs, mill, creamery, bakery, patisserie
+                field, coop, dairy, goats, ducks, pigs, mill, creamery, bakery, patisserie,
+                kitchen
             });
             Register(serialized, "_storages", new Object[] { barn });
             Register(serialized, "_currencies", new Object[] { coins, gems });
@@ -491,7 +548,7 @@ namespace AlphaTown.EditorTools.Setup
             {
                 plot, coopBuilding, dairyBuilding, goatBuilding, duckBuilding, pigBuilding,
                 millBuilding, creameryBuilding, bakeryBuilding, patisserieBuilding,
-                granary, flowerBed, fountain
+                kitchenBuilding, granary, flowerBed, fountain
             });
             Register(serialized, "_orderBoards", new Object[] { board, trainBoard, shipBoard });
             Register(serialized, "_expansions", new Object[] { north, east, northEast });
@@ -506,6 +563,7 @@ namespace AlphaTown.EditorTools.Setup
             Nominate(serialized, "_townDefinition", town);
             Nominate(serialized, "_newGame", newGame);
             AssetAuthoring.Apply(serialized);
+            return database;
         }
 
         static void Register(SerializedObject serialized, string field, Object[] entries)

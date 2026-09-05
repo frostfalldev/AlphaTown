@@ -32,6 +32,12 @@ namespace AlphaTown.Data.Catalog
         // generation needs to know what the player can currently produce.
         IReadOnlyList<IItemDefinition> Items { get; }
         IReadOnlyList<IRecipeDefinition> Recipes { get; }
+
+        /// <summary>
+        /// Every producer. The only list that was missing, which meant nothing could ask the
+        /// obvious question — is this producer attached to any building a player can build?
+        /// </summary>
+        IReadOnlyList<IProducerDefinition> Producers { get; }
         IReadOnlyList<ICurrencyDefinition> Currencies { get; }
         IReadOnlyList<IOrderTemplateDefinition> OrderTemplates { get; }
         IReadOnlyList<IBuildingDefinition> Buildings { get; }

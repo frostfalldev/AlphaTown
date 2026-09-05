@@ -49,6 +49,7 @@ namespace UnityEngine
         public int childCount => 0;
         public Transform GetChild(int index) => null;
         public void SetParent(Transform parent, bool worldPositionStays) { }
+        public void Rotate(float x, float y, float z) { }
     }
 
     public class GameObject : Object
@@ -58,6 +59,20 @@ namespace UnityEngine
         public string tag = "Untagged";
         public Transform transform { get; } = new Transform();
         public T AddComponent<T>() where T : Component, new() => new T();
+    }
+
+    /// <summary>
+    /// Presentation randomness. The simulation never uses this — it hashes instead, so that a
+    /// harvest which finished while the game was closed yields what it would have on screen — so
+    /// a fixed-sequence stand-in is enough for the compiler and honest about what is being tested.
+    /// </summary>
+    public static class Random
+    {
+        static readonly System.Random Source = new System.Random(1);
+
+        public static float value => (float)Source.NextDouble();
+        public static float Range(float min, float max) => min + (max - min) * value;
+        public static int Range(int minInclusive, int maxExclusive) => Source.Next(minInclusive, maxExclusive);
     }
 
     // --- Attributes -------------------------------------------------------------------------
@@ -232,6 +247,32 @@ namespace UnityEngine
         public Color(float r, float g, float b) : this(r, g, b, 1f) { }
         public static Color white => new Color(1f, 1f, 1f, 1f);
         public static Color clear => new Color(0f, 0f, 0f, 0f);
+
+        /// <summary>Real conversion, not a stub — the UI hashes ids to hues and a test may assert one.</summary>
+        public static Color HSVToRGB(float h, float s, float v)
+        {
+            if (s <= 0f) return new Color(v, v, v, 1f);
+
+            var sector = Mathf.Clamp01(h) * 6f;
+            if (sector >= 6f) sector = 0f;
+
+            var index = (int)sector;
+            var fraction = sector - index;
+
+            var p = v * (1f - s);
+            var q = v * (1f - s * fraction);
+            var t = v * (1f - s * (1f - fraction));
+
+            switch (index)
+            {
+                case 0: return new Color(v, t, p, 1f);
+                case 1: return new Color(q, v, p, 1f);
+                case 2: return new Color(p, v, t, 1f);
+                case 3: return new Color(p, q, v, 1f);
+                case 4: return new Color(t, p, v, 1f);
+                default: return new Color(v, p, q, 1f);
+            }
+        }
         public override bool Equals(object obj) => obj is Color c && c.r == r && c.g == g && c.b == b && c.a == a;
         public override int GetHashCode() => r.GetHashCode() ^ g.GetHashCode() ^ b.GetHashCode() ^ a.GetHashCode();
         public static bool operator ==(Color a, Color b) => a.Equals(b);

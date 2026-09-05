@@ -1,3 +1,4 @@
+using AlphaTown.UI.Hud;
 using AlphaTown.UI.View;
 using NUnit.Framework;
 using UnityEngine;
@@ -18,6 +19,32 @@ namespace AlphaTown.Tests.EditMode
 
             Assert.That(sprite, Is.Not.Null);
             Assert.That(sprite.texture.GetPixel(0, 0), Is.EqualTo(Color.white));
+        }
+
+        [Test]
+        public void ThePuffIsSolidInTheMiddleAndGoneAtTheEdge()
+        {
+            var sprite = PlaceholderArt.Puff();
+            Assert.That(sprite, Is.Not.Null);
+
+            var size = sprite.texture.width;
+
+            Assert.That(sprite.texture.GetPixel(size / 2, size / 2).a, Is.GreaterThan(0.9f));
+            Assert.That(sprite.texture.GetPixel(0, 0).a, Is.LessThan(0.01f));
+        }
+
+        /// <summary>
+        /// The chip tint stands in for an item icon, so a good has to keep its colour between the
+        /// barn and the build menu, and between sessions. A hash gives that; a random draw would
+        /// give a different palette every launch.
+        /// </summary>
+        [Test]
+        public void ChipTintsAreStableAndDifferPerId()
+        {
+            var wheat = UiKit.TintFor("wheat");
+
+            Assert.That(UiKit.TintFor("wheat"), Is.EqualTo(wheat));
+            Assert.That(UiKit.TintFor("bacon"), Is.Not.EqualTo(wheat));
         }
 
         [Test]

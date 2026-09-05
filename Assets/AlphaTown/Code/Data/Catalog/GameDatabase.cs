@@ -71,6 +71,7 @@ namespace AlphaTown.Data.Catalog
 
         IItemDefinition[] _itemList;
         IRecipeDefinition[] _recipeList;
+        IProducerDefinition[] _producerList;
         ICurrencyDefinition[] _currencyList;
         IOrderTemplateDefinition[] _orderTemplateList;
         IBuildingDefinition[] _buildingList;
@@ -99,6 +100,15 @@ namespace AlphaTown.Data.Catalog
             {
                 EnsureIndexed();
                 return _recipeList;
+            }
+        }
+
+        public IReadOnlyList<IProducerDefinition> Producers
+        {
+            get
+            {
+                EnsureIndexed();
+                return _producerList;
             }
         }
 
@@ -217,6 +227,7 @@ namespace AlphaTown.Data.Catalog
 
             _itemList = ToArray(_itemsById);
             _recipeList = ToArray(_recipesById);
+            _producerList = ToArray(_producersById);
             _currencyList = ToArray(_currenciesById);
             _orderTemplateList = ToArray(_orderTemplatesById);
             _buildingList = ToArray(_buildingsById);

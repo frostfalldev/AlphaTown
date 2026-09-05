@@ -98,6 +98,7 @@ namespace AlphaTown.UI.Hud
             row.style.paddingBottom = 6f;
 
             var left = UiKit.Row(10f);
+            var name = DisplayNames.ForItem(_database, itemId);
 
             if (_database != null && _database.TryGetItem(itemId, out var item) && item is IItemVisuals visuals &&
                 visuals.Icon != null)
@@ -107,8 +108,12 @@ namespace AlphaTown.UI.Hud
                 icon.style.height = 40f;
                 left.Add(icon);
             }
+            else
+            {
+                left.Add(UiKit.Chip(itemId, name));
+            }
 
-            left.Add(UiKit.Text(DisplayNames.ForItem(_database, itemId)));
+            left.Add(UiKit.Text(name));
             row.Add(left);
 
             var right = UiKit.Row(10f);

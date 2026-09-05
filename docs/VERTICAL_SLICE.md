@@ -52,6 +52,28 @@ Two consequences worth knowing:
 
 Either way ids are never regenerated for an existing asset, so a save file's references stay valid.
 
+### Content validation
+
+Every generate run ends by validating the database it just wrote, and **AlphaTown ▸ Content ▸
+Validate Content** runs the same pass on demand. It reads the whole graph and reports what does
+not join up: a recipe that wants an item nothing makes, a producer no building runs, a good that
+is made and then wanted by nothing, a recipe that unlocks before its own inputs can exist, a board
+that opens with no template of its kind, a new game that starts you with an item that was deleted.
+
+None of those throw. The game runs, and the player finds a pen that produces something they can
+only sell back at a loss — which is exactly the bug that was in this content until the kitchen was
+added. It costs one console line to know instead.
+
+The check that matters most after a content change is **"No producer runs this recipe."** Because
+the generator leaves existing assets alone, adding a recipe to a producer that is already on disk
+does nothing on your machine: the recipe asset appears, the database lists it, and no building can
+run it. If you see that warning after pulling new content, the fix is **Rebuild Sample Content
+(overwrite)**, or deleting just the producer asset it names and generating again.
+
+The validator itself lives in `Data/Validation` and works on the interfaces, so it runs in the
+Editor against generated assets and in `ContentValidatorTests` against a hand-built database, with
+no Unity involved either way.
+
 ### Straight to an APK
 
 Once the Unity project exists (docs/SETUP.md), everything above plus the build is one command:
@@ -146,26 +168,36 @@ Four field plots, 500 coins, 10 gems, 4 wheat, and a 50-space barn on an 8×8 pa
 | --- | --- |
 | Crops | Wheat (60s), Corn (180s, level 2) |
 | Livestock | Hens (2), cows (3), goats (4), ducks (5), pigs (6) — all eat feed |
-| Chains | Wheat ▸ Feed ▸ the five animal goods<br>Wheat ▸ Flour ▸ Bread · Flour + Eggs ▸ Cake · Milk ▸ Cheese |
+| Chains | Wheat ▸ Feed ▸ the five animal goods<br>Wheat ▸ Flour ▸ Bread · Flour + Eggs ▸ Cake<br>Milk ▸ Cheese · Goat milk ▸ Goat cheese<br>Duck meat + Corn ▸ Roast duck · Bacon + Flour + Cheese ▸ Bacon pie |
 | Decorations | Flower bed (level 1) upgrading into a fountain (level 3) |
 | Orders | Helicopter: 4 slots, 2–5 min, 30% deed chance<br>Train (level 3): 3 slots, 15–40 min, 2.6x coins, 60% for two deeds<br>Ship (level 5): 2 slots, 2–3 hours, 3.6x coins, always three deeds |
 | Land | Three 8×8 parcels gated on 1, 2 and 3 deeds plus coins |
 | Levels | Eight, at 60 / 150 / 320 / 620 / 1100 / 1900 / 3200 / 5000 XP |
 
-Thirteen buildings: `field_plot`, `chicken_coop`, `dairy_shed`, `goat_pen`, `duck_pond`,
-`pig_pen`, `mill_house`, `creamery`, `bakery`, `patisserie`, `granary`, `flower_bed`, `fountain`.
+Fourteen buildings: `field_plot`, `chicken_coop`, `dairy_shed`, `goat_pen`, `duck_pond`,
+`pig_pen`, `mill_house`, `creamery`, `bakery`, `patisserie`, `kitchen`, `granary`, `flower_bed`,
+`fountain`.
 
 The five pens ladder across the whole level curve, and feed cost rises with what the animal is
 worth — one sack for hens, five for pigs. A hen is a habit; a pig is a commitment.
 
-| Animal | Unlocks | Feed | Time | Produces |
-| --- | --- | --- | --- | --- |
-| Hens | 2 | 1 | 4 min | Chicken eggs |
-| Cows | 3 | 2 | 7 min | Milk |
-| Goats | 4 | 2 | 10 min | Goat milk |
-| Ducks | 5 | 3 | 15 min | Duck meat |
-| Pigs | 6 | 5 | 25 min | Bacon | Every level of every one pays XP when it finishes — which is the only
-reason to buy a decoration, since it produces nothing and stores nothing.
+| Animal | Unlocks | Feed | Time | Produces | Which becomes |
+| --- | --- | --- | --- | --- | --- |
+| Hens | 2 | 1 | 4 min | Chicken eggs | Cake, at the patisserie |
+| Cows | 3 | 2 | 7 min | Milk | Cheese, at the creamery |
+| Goats | 4 | 2 | 10 min | Goat milk | Goat cheese, at the creamery |
+| Ducks | 5 | 3 | 15 min | Duck meat | Roast duck, at the kitchen |
+| Pigs | 6 | 5 | 25 min | Bacon | Bacon pie, at the kitchen |
+
+Every animal good is wanted by something. That last column used to end at goat milk: the three
+most expensive pens in the game made goods that no recipe consumed, so the only thing to do with
+them was sell them back at 35% — which made the pens a worse deal the further up the ladder you
+went. The creamery took a second recipe and the **kitchen** (level 5) was added for the two meats;
+both of its recipes want something from outside the pen that feeds them, so a late animal pulls
+the early chains along instead of replacing them.
+
+Every building level pays XP when it finishes — which is the only reason to buy a decoration,
+since it produces nothing and stores nothing.
 
 The **granary** is the only thing that grows the barn. Its four levels walk the storage
 definition's capacities from 75 up to 240; the town starts on 50. Storage is a tier reached, not a

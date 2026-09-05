@@ -37,7 +37,9 @@ namespace AlphaTown.UI.Interaction
         int _bladeSortingOrder = 30000;
 
         [Header("Visual Feedback")]
+        [Tooltip("Optional. Pooled sprite dust is used instead when this is empty.")]
         [SerializeField] TrailRenderer _sickleTrail;
+
         [SerializeField] ParticleSystem _swipeParticles;
 
         [Header("Sampling")]
@@ -53,6 +55,7 @@ namespace AlphaTown.UI.Interaction
         readonly HashSet<GridPosition> _cutThisSwipe = new HashSet<GridPosition>();
 
         SpriteRenderer _blade;
+        SwipeFeedback _feedback;
         Vector3 _lastSamplePosition;
         bool _isSwiping;
         int _harvestedThisSwipe;
@@ -67,6 +70,9 @@ namespace AlphaTown.UI.Interaction
             if (_selection == null) _selection = FindAnyObjectByType<TownSelection>();
 
             if (_sickleTrail != null) _sickleTrail.emitting = false;
+
+            // One below the blade, so the dust reads as coming off it rather than covering it.
+            _feedback = new SwipeFeedback(transform, _bladeSortingOrder - 1);
 
             CreateBlade();
         }
@@ -85,6 +91,8 @@ namespace AlphaTown.UI.Interaction
 
         void Start() => OnToolChanged();
 
+        void Update() => _feedback.Tick(Time.deltaTime);
+
         public bool IsArmed => _tool != null && _tool.IsSickleArmed;
 
         // --- Swipe ------------------------------------------------------------------------------
@@ -97,6 +105,7 @@ namespace AlphaTown.UI.Interaction
             _lastSamplePosition = worldPosition;
 
             MoveBladeTo(worldPosition);
+            _feedback.BeginSwipe();
 
             if (_sickleTrail != null)
             {
@@ -123,6 +132,7 @@ namespace AlphaTown.UI.Interaction
             MoveBladeTo(worldPosition);
 
             if (_sickleTrail != null) _sickleTrail.transform.position = worldPosition;
+            else _feedback.TrailPoint(worldPosition);
 
             if (_swipeParticles != null)
             {
@@ -162,8 +172,13 @@ namespace AlphaTown.UI.Interaction
             var cell = IsoGridMath.WorldToGrid(worldPosition);
             if (!_cutThisSwipe.Add(cell)) return;
 
-            if (_runner != null && _runner.Commands != null && _runner.Commands.HarvestAt(cell))
-                _harvestedThisSwipe++;
+            if (_runner == null || _runner.Commands == null || !_runner.Commands.HarvestAt(cell)) return;
+
+            _harvestedThisSwipe++;
+
+            // Burst on the tile's centre rather than under the finger. The finger is what the
+            // player is looking past; the tile is what they were aiming at.
+            _feedback.HarvestBurst(IsoGridMath.GridToWorld(cell.X, cell.Y));
         }
 
         // --- The blade --------------------------------------------------------------------------
@@ -186,8 +201,14 @@ namespace AlphaTown.UI.Interaction
             if (_blade == null) return;
 
             _blade.enabled = IsArmed;
-            if (IsArmed) RestBladeOverSelection();
-            else if (_sickleTrail != null) _sickleTrail.emitting = false;
+            if (IsArmed)
+            {
+                RestBladeOverSelection();
+                return;
+            }
+
+            if (_sickleTrail != null) _sickleTrail.emitting = false;
+            _feedback.Clear();
         }
 
         void OnSelectionChanged()

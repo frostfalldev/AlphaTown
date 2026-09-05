@@ -58,6 +58,7 @@ namespace UnityEngine.UIElements
         StyleLength maxWidth { get; set; }
         StyleLength maxHeight { get; set; }
         StyleFloat flexGrow { get; set; }
+        StyleFloat flexShrink { get; set; }
         StyleLength fontSize { get; set; }
         StyleLength paddingLeft { get; set; }
         StyleLength paddingRight { get; set; }
@@ -96,6 +97,7 @@ namespace UnityEngine.UIElements
         public StyleLength maxWidth { get; set; }
         public StyleLength maxHeight { get; set; }
         public StyleFloat flexGrow { get; set; }
+        public StyleFloat flexShrink { get; set; }
         public StyleLength fontSize { get; set; }
         public StyleLength paddingLeft { get; set; }
         public StyleLength paddingRight { get; set; }

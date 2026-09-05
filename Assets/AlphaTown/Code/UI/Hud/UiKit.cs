@@ -1,3 +1,4 @@
+using AlphaTown.Core.Randomness;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -136,6 +137,77 @@ namespace AlphaTown.UI.Hud
             element.style.borderTopRightRadius = radius;
             element.style.borderBottomLeftRadius = radius;
             element.style.borderBottomRightRadius = radius;
+        }
+
+        /// <summary>
+        /// A rounded, tinted square with an initial in it — what stands in for an item icon until
+        /// there is art.
+        ///
+        /// A list of sixteen goods that are all the same grey shape is read by reading, which is
+        /// exactly what an icon is for. The tint comes from the id, so a good keeps its colour
+        /// everywhere it appears and across sessions, and two goods are only ever the same colour
+        /// by coincidence rather than because nothing was authored.
+        /// </summary>
+        public static VisualElement Chip(string id, string label, float size = 40f, Color? tint = null)
+        {
+            var fill = tint ?? TintFor(id);
+
+            var chip = new VisualElement
+            {
+                pickingMode = PickingMode.Ignore,
+                style =
+                {
+                    width = size,
+                    height = size,
+                    backgroundColor = fill,
+                    alignItems = Align.Center,
+                    justifyContent = Justify.Center,
+                    flexShrink = 0f
+                }
+            };
+
+            Round(chip, size * 0.28f);
+
+            var initial = Text(Initial(label), Mathf.RoundToInt(size * 0.45f), true);
+            initial.pickingMode = PickingMode.Ignore;
+
+            // A caller can hand in any colour — a building's placeholder tint is authored per
+            // building and some of them are mud — so the letter picks its own side rather than
+            // assuming a pale chip.
+            initial.style.color = Luminance(fill) > 0.55f
+                ? new Color(0.10f, 0.11f, 0.12f)
+                : Ink;
+
+            chip.Add(initial);
+
+            return chip;
+        }
+
+        static float Luminance(Color colour) => 0.299f * colour.r + 0.587f * colour.g + 0.114f * colour.b;
+
+        /// <summary>
+        /// A colour from an id: hashed to a hue, then held to one saturation and value so every
+        /// chip sits at the same weight against the panel and none of them fights the text.
+        /// </summary>
+        public static Color TintFor(string id)
+        {
+            var seed = DeterministicRoll.Seed(id ?? string.Empty, 0);
+            var hue = DeterministicRoll.Range(seed, 0, 359) / 360f;
+
+            return Color.HSVToRGB(hue, 0.45f, 0.86f);
+        }
+
+        static string Initial(string label)
+        {
+            if (string.IsNullOrEmpty(label)) return "?";
+
+            // Two letters for a two-word name — "Goat Cheese" reads as GC, which separates it from
+            // cheese at a glance where a lone C would not.
+            var space = label.IndexOf(' ');
+            if (space > 0 && space + 1 < label.Length)
+                return char.ToUpperInvariant(label[0]).ToString() + char.ToUpperInvariant(label[space + 1]);
+
+            return char.ToUpperInvariant(label[0]).ToString();
         }
 
         /// <summary>

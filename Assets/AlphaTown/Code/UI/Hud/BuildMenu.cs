@@ -5,6 +5,7 @@ using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Presentation;
 using AlphaTown.Gameplay.Buildings;
 using AlphaTown.Gameplay.Commands;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace AlphaTown.UI.Hud
@@ -82,16 +83,27 @@ namespace AlphaTown.UI.Hud
 
             var left = UiKit.Row(10f);
 
-            if (definition is IBuildingVisuals visuals && visuals.Icon != null)
+            var name = DisplayNames.ForBuilding(_database, definition.Id);
+            var art = definition as IBuildingVisuals;
+
+            if (art != null && art.Icon != null)
             {
-                var icon = new Image { sprite = visuals.Icon };
+                var icon = new Image { sprite = art.Icon };
                 icon.style.width = 44f;
                 icon.style.height = 44f;
                 left.Add(icon);
             }
+            else
+            {
+                // The building's own placeholder tint, so the swatch in the menu is the colour of
+                // the block that will appear in the town. A different colour in each place is how
+                // a player ends up building the wrong thing twice.
+                left.Add(UiKit.Chip(definition.Id, name, 44f,
+                    art != null ? art.PlaceholderColour : (Color?)null));
+            }
 
             var text = UiKit.Column(2f);
-            text.Add(UiKit.Text(DisplayNames.ForBuilding(_database, definition.Id), 24, true));
+            text.Add(UiKit.Text(name, 24, true));
             text.Add(UiKit.Caption(unlocked
                 ? DescribeCost(definition.GetLevel(1)) + "  ·  " + definition.Footprint
                 : "Unlocks at town level " + definition.UnlockLevel));

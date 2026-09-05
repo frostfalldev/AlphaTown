@@ -402,6 +402,7 @@ namespace AlphaTown.Tests.EditMode
         readonly List<IItemDefinition> _itemList = new List<IItemDefinition>();
         readonly List<IRecipeDefinition> _recipeList = new List<IRecipeDefinition>();
         readonly List<ICurrencyDefinition> _currencyList = new List<ICurrencyDefinition>();
+        readonly List<IProducerDefinition> _producerList = new List<IProducerDefinition>();
         readonly List<IOrderTemplateDefinition> _orderTemplateList = new List<IOrderTemplateDefinition>();
         readonly List<IBuildingDefinition> _buildingList = new List<IBuildingDefinition>();
         readonly List<IOrderBoardDefinition> _orderBoardList = new List<IOrderBoardDefinition>();
@@ -416,6 +417,7 @@ namespace AlphaTown.Tests.EditMode
 
         public IReadOnlyList<IItemDefinition> Items => _itemList;
         public IReadOnlyList<IRecipeDefinition> Recipes => _recipeList;
+        public IReadOnlyList<IProducerDefinition> Producers => _producerList;
         public IReadOnlyList<ICurrencyDefinition> Currencies => _currencyList;
         public IReadOnlyList<IOrderTemplateDefinition> OrderTemplates => _orderTemplateList;
         public IReadOnlyList<IBuildingDefinition> Buildings => _buildingList;
@@ -439,6 +441,7 @@ namespace AlphaTown.Tests.EditMode
         public FakeDatabase WithProducer(IProducerDefinition producer)
         {
             _producers[producer.Id] = producer;
+            _producerList.Add(producer);
             return this;
         }
 
@@ -477,6 +480,7 @@ namespace AlphaTown.Tests.EditMode
         public FakeDatabase ClearOrderBoards()
         {
             _orderBoards.Clear();
+            _orderBoardList.Clear();
             return this;
         }
 

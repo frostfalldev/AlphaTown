@@ -15,6 +15,7 @@ namespace AlphaTown.UI.View
         // and would otherwise pile up one copy per load.
         static Sprite _solid;
         static Sprite _sickle;
+        static Sprite _puff;
 
         /// <summary>One white pixel, tinted per use. Ground tiles and buildings are built from this.</summary>
         public static Sprite Solid()
@@ -88,6 +89,43 @@ namespace AlphaTown.UI.View
             // Pivot at the handle's far end so the blade swings from the grip.
             return _sickle = Finish(texture, "AlphaTown Sickle", pixelsPerUnit: size,
                 pivot: new Vector2(handleTo.x / size, handleTo.y / size));
+        }
+
+        /// <summary>
+        /// A soft round dot, opaque in the middle and feathered to nothing at the rim.
+        ///
+        /// It is the whole of the game's particle art: tinted and scaled, it is chaff behind the
+        /// sickle and a burst over a cut crop. A square would read as a bug rather than as dust,
+        /// and one feathered circle is cheaper than importing a texture the project does not have.
+        /// </summary>
+        public static Sprite Puff()
+        {
+            if (_puff != null) return _puff;
+
+            const int size = 32;
+            const float radius = size * 0.5f;
+
+            var texture = NewTexture(size, size);
+            var pixels = new Color[size * size];
+            var centre = new Vector2(radius, radius);
+
+            for (var y = 0; y < size; y++)
+            {
+                for (var x = 0; x < size; x++)
+                {
+                    var distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), centre) / radius;
+
+                    // Squared falloff: a solid core that thins quickly, which reads as a puff
+                    // rather than as a blurred disc.
+                    var alpha = Mathf.Clamp01(1f - distance);
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, alpha * alpha);
+                }
+            }
+
+            texture.SetPixels(pixels);
+            texture.Apply();
+
+            return _puff = Finish(texture, "AlphaTown Puff", pixelsPerUnit: size);
         }
 
         // --- Drawing helpers --------------------------------------------------------------------

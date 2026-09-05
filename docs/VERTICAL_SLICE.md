@@ -146,7 +146,7 @@ Four field plots, 500 coins, 10 gems, 4 wheat, and a 50-space barn on an 8×8 pa
 | Crops | Wheat (60s), Corn (180s, level 2), Eggs (240s, level 2) |
 | Chains | Wheat ▸ Flour (mill, level 2) ▸ Bread (bakery, level 3)<br>Flour + Eggs ▸ Cake (patisserie, level 4) |
 | Decorations | Flower bed (level 1) upgrading into a fountain (level 3) |
-| Orders | 4 helicopter slots, cooldowns 120/180/240/300s, 30% chance of a land deed |
+| Orders | Helicopter: 4 slots, 2–5 min cooldowns, 30% deed chance<br>Train (level 3): 3 slots, 15–40 min, bulk asks, 2.6x coins, 60% for two deeds |
 | Land | Three 8×8 parcels gated on 1, 2 and 3 deeds plus coins |
 | Levels | Eight, at 60 / 150 / 320 / 620 / 1100 / 1900 / 3200 / 5000 XP |
 
@@ -193,9 +193,9 @@ clear, so the town stays draggable with one thumb.
 4. **Nothing is celebrated.** A level-up, a completed delivery and a failed tap all produce the
    same small grey toast. The three biggest moments in the loop are indistinguishable from an error
    message.
-5. **Coins have somewhere to go every few minutes now** — rerolling a bad order — but the board is
-   only four slots, so the decision arrives at the board's pace rather than the player's. Someone
-   sitting on ten thousand coins still has nothing to do with them quickly.
+5. **Coins have somewhere to go every few minutes now** — rerolling a bad order, on either board —
+   but the decision still arrives at the boards' pace rather than the player's. Someone sitting on
+   ten thousand coins has nothing to do with them quickly.
 6. **Nothing is priced in gems.** The hard currency is decoration: no speed-ups, no purchases.
    The one thing a player wants while a timer runs does not exist.
 7. **The map is bigger than the game.** A 24×24 town with three unlockable parcels around a used
@@ -217,8 +217,8 @@ Roughly in order of value per hour spent:
 5. **Harvest All**, driven by `TownCommands.CollectHarvestable`, for when the town outgrows a
    comfortable swipe.
 6. **Something to want at scale.** Rerolling drains coins a few dozen at a time. A player who has
-   banked thousands needs a purchase sized for that — a second order board, a bigger town, or
-   buildings that keep costing to run.
+   banked thousands needs a purchase sized for that — a bigger town, or buildings that keep
+   costing to run.
 7. **Named order customers**, even as placeholder portraits and three lines of flavour text.
 8. **Shrink the map, or seed more of it.** Either start on a smaller grid or place decorations and
    obstacles in the locked parcels so unlocking one reveals something.

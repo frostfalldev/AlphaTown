@@ -26,6 +26,7 @@ namespace AlphaTown.Gameplay.Orders
         public string Id => "orderboard.fallback." + Kind;
         public OrderKind Kind { get; }
         public int SlotCount { get; }
+        public int UnlockLevel => 1;
         public TimeSpan Cooldown { get; }
 
         public TimeSpan CooldownForSlot(int slotIndex) => Cooldown;

@@ -59,12 +59,41 @@ namespace AlphaTown.UI.Hud
 
             _list.Clear();
 
-            var board = world.HelicopterOrders;
-            var orders = board.Orders;
-
-            for (var i = 0; i < orders.Count; i++) _list.Add(BuildCard(world, board, orders[i]));
+            // Every board in one scroll rather than tabs. There are two, they behave identically,
+            // and a tab bar would hide half the game's income behind a control nobody asked for.
+            var boards = world.OrderBoards;
+            for (var b = 0; b < boards.Count; b++) AddBoard(world, boards[b], boards.Count > 1);
 
             if (_list.childCount == 0) _list.Add(UiKit.Caption("No orders right now. Check back shortly."));
+        }
+
+        /// <summary>
+        /// One board's heading and its cards. A locked board still shows, saying when it opens —
+        /// hiding it would mean the player never learns there is a bigger board to play towards.
+        /// </summary>
+        void AddBoard(GameWorld world, OrderBoard board, bool showHeading)
+        {
+            if (showHeading) _list.Add(BuildBoardHeading(board));
+
+            if (!board.IsUnlocked)
+            {
+                _list.Add(UiKit.Caption("Opens at town level " + board.UnlockLevel + "."));
+                return;
+            }
+
+            var orders = board.Orders;
+            for (var i = 0; i < orders.Count; i++) _list.Add(BuildCard(world, board, orders[i]));
+
+            if (orders.Count == 0) _list.Add(UiKit.Caption("Every slot is still cooling down."));
+        }
+
+        VisualElement BuildBoardHeading(OrderBoard board)
+        {
+            var heading = UiKit.Text(DisplayNames.Pretty(board.Kind.ToString()), 24, true);
+            heading.style.marginTop = 14f;
+            heading.style.marginBottom = 4f;
+            heading.style.color = UiKit.Muted;
+            return heading;
         }
 
         VisualElement BuildCard(GameWorld world, OrderBoard board, Order order)

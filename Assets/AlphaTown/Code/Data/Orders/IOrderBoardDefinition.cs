@@ -20,6 +20,15 @@ namespace AlphaTown.Data.Orders
         int SlotCount { get; }
 
         /// <summary>
+        /// Town level before this board exists at all.
+        ///
+        /// A board is gated as a whole rather than left to fall empty because its templates are
+        /// locked: an empty board on screen reads as a bug, where a board that says when it opens
+        /// reads as something to play towards.
+        /// </summary>
+        int UnlockLevel { get; }
+
+        /// <summary>
         /// How long this slot stays empty before a new order appears. Per-slot so a board can
         /// have a fast first slot and slower later ones. Zero refills immediately.
         /// </summary>

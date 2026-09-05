@@ -154,13 +154,15 @@ namespace AlphaTown.Gameplay.Commands
 
         public CommandResult Deliver(string orderId)
         {
-            if (!_world.HelicopterOrders.TryGetOrder(orderId, out var order))
+            // Found by searching the boards rather than assuming one, so a train order delivers
+            // through exactly the same path as a helicopter order.
+            if (!_world.TryGetBoardFor(orderId, out var board) || !board.TryGetOrder(orderId, out var order))
                 return CommandResult.Fail("That order is gone.");
 
             if (order.IsExpired(_clock.UtcNowTicks)) return CommandResult.Fail("That order expired.");
-            if (!_world.HelicopterOrders.CanComplete(orderId)) return CommandResult.Fail("You are missing goods.");
+            if (!board.CanComplete(orderId)) return CommandResult.Fail("You are missing goods.");
 
-            return _world.HelicopterOrders.TryComplete(orderId)
+            return board.TryComplete(orderId)
                 ? CommandResult.Ok("Delivered.")
                 : CommandResult.Fail("Could not deliver that.");
         }
@@ -174,14 +176,14 @@ namespace AlphaTown.Gameplay.Commands
         /// </summary>
         public CommandResult Reroll(string orderId)
         {
-            if (!_world.HelicopterOrders.TryGetOrder(orderId, out _))
+            if (!_world.TryGetBoardFor(orderId, out var board))
                 return CommandResult.Fail("That order is gone.");
 
-            var cost = _world.HelicopterOrders.RerollCost(orderId);
+            var cost = board.RerollCost(orderId);
             if (!_world.Wallet.CanAfford(SoftCurrencyId, cost))
                 return CommandResult.Fail("Rerolling costs " + cost + ".");
 
-            return _world.HelicopterOrders.TryReroll(orderId)
+            return board.TryReroll(orderId)
                 ? CommandResult.Ok("New order in.")
                 : CommandResult.Fail("Could not reroll that.");
         }
@@ -244,7 +246,7 @@ namespace AlphaTown.Gameplay.Commands
         /// </summary>
         public CommandResult BuyShortfall(string orderId, string itemId)
         {
-            if (!_world.HelicopterOrders.TryGetOrder(orderId, out var order))
+            if (!_world.TryGetBoardFor(orderId, out var board) || !board.TryGetOrder(orderId, out var order))
                 return CommandResult.Fail("That order is gone.");
 
             var needed = 0;

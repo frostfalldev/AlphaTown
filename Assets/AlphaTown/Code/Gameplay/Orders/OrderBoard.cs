@@ -76,7 +76,28 @@ namespace AlphaTown.Gameplay.Orders
             _active = new List<Order>(slotCount);
         }
 
+        /// <summary>Stable across builds, and how a save finds its way back to the right board.</summary>
+        public string Id => _definition.Id;
+
+        /// <summary>
+        /// Order ids are scoped to their board.
+        ///
+        /// Each board counts from one, so a bare number collides the moment there is more than one
+        /// board — and an id that matches two orders means delivering one could complete the
+        /// other. Prefixing costs nothing and makes the collision impossible rather than unlikely.
+        /// </summary>
+        string NextOrderId() => _definition.Id + ".order_" + _nextOrderNumber;
+
         public OrderKind Kind => _definition.Kind;
+
+        /// <summary>
+        /// False until the town reaches the board's level. A locked board generates nothing and
+        /// starts no cooldowns, so unlocking one hands the player every slot at once — which is
+        /// the moment it should feel like.
+        /// </summary>
+        public bool IsUnlocked => _progression.IsUnlocked(_definition.UnlockLevel);
+
+        public int UnlockLevel => _definition.UnlockLevel;
 
         public int SlotCount => _slots.Length;
 
@@ -100,6 +121,8 @@ namespace AlphaTown.Gameplay.Orders
         /// <summary>Expires what has run out, then refills any slot whose cooldown has passed.</summary>
         public void Sync()
         {
+            if (!IsUnlocked) return;
+
             var now = _clock.UtcNowTicks;
 
             for (var i = 0; i < _slots.Length; i++)
@@ -322,7 +345,7 @@ namespace AlphaTown.Gameplay.Orders
                 if (template == null) return;
 
                 var order = _generator.TryGenerate(
-                    template, _progression.TownLevel, nowTicks, "order_" + _nextOrderNumber);
+                    template, _progression.TownLevel, nowTicks, NextOrderId());
 
                 // Nothing the player can produce yet. Try again after the next unlock.
                 if (order == null) return;

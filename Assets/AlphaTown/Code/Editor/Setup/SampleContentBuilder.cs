@@ -16,8 +16,8 @@ namespace AlphaTown.EditorTools.Setup
 {
     /// <summary>
     /// Generates a starting town's worth of content: two crops and a hen coop, a mill, a bakery
-    /// and a patisserie, a granary, two decorations, an order board, three parcels of land, and
-    /// the database that ties them together.
+    /// and a patisserie, a granary, two decorations, a helicopter and a train board, three parcels
+    /// of land, and the database that ties them together.
     ///
     /// This exists because the slice needs numbers to be playable, and hand-authoring thirty
     /// interlinked assets before the loop can be tried once is the wrong order to find out the
@@ -287,8 +287,24 @@ namespace AlphaTown.EditorTools.Setup
             // --- Orders ------------------------------------------------------------------------
             // Deeds drop from orders and nowhere else, which is what keeps expansion paced by
             // playing rather than by saving up.
-            var template = OrderTemplate("helicopter_basic", deed);
-            var board = OrderBoard("helicopter_board", new[] { 120, 180, 240, 300 });
+            //
+            // Two boards, and the difference between them is the decision. The helicopter is the
+            // everyday faucet: small, quick, forgiving. The train asks for two or three goods in
+            // bulk and pays half again as well, on cooldowns long enough that you cannot live off
+            // it — which turns "dump everything into helicopter orders" into "hold some back".
+            var template = OrderTemplate("helicopter_basic", deed, OrderKind.Helicopter,
+                unlockLevel: 1, minTypes: 1, maxTypes: 2, minQuantity: 2, maxQuantity: 8,
+                coinMultiplier: 1.7f, xpMultiplier: 1f, bonusChance: 0.3f);
+
+            var board = OrderBoard("helicopter_board", OrderKind.Helicopter,
+                new[] { 120, 180, 240, 300 }, unlockLevel: 1, rerollBaseCost: 40);
+
+            var trainTemplate = OrderTemplate("train_bulk", deed, OrderKind.Train,
+                unlockLevel: 3, minTypes: 2, maxTypes: 3, minQuantity: 6, maxQuantity: 14,
+                coinMultiplier: 2.6f, xpMultiplier: 1.8f, bonusChance: 0.6f, deedCount: 2);
+
+            var trainBoard = OrderBoard("train_board", OrderKind.Train,
+                new[] { 900, 1500, 2400 }, unlockLevel: 3, rerollBaseCost: 250);
 
             // --- Land --------------------------------------------------------------------------
             var town = Town(width: 24, height: 24, startX: 8, startY: 8, startWidth: 8, startHeight: 8);
@@ -332,13 +348,13 @@ namespace AlphaTown.EditorTools.Setup
             Register(serialized, "_producers", new Object[] { field, coop, mill, bakery, patisserie });
             Register(serialized, "_storages", new Object[] { barn });
             Register(serialized, "_currencies", new Object[] { coins, gems });
-            Register(serialized, "_orderTemplates", new Object[] { template });
+            Register(serialized, "_orderTemplates", new Object[] { template, trainTemplate });
             Register(serialized, "_buildings", new Object[]
             {
                 plot, coopBuilding, millBuilding, bakeryBuilding, patisserieBuilding,
                 granary, flowerBed, fountain
             });
-            Register(serialized, "_orderBoards", new Object[] { board });
+            Register(serialized, "_orderBoards", new Object[] { board, trainBoard });
             Register(serialized, "_expansions", new Object[] { north, east, northEast });
 
             // The well-known slots name which of the above the game reaches for by default. An
@@ -604,7 +620,11 @@ namespace AlphaTown.EditorTools.Setup
         /// the generator rolls from whatever the player has unlocked, so a single template already
         /// produces a varied board.
         /// </summary>
-        static OrderTemplateDefinition OrderTemplate(string id, ItemDefinition deed)
+        static OrderTemplateDefinition OrderTemplate(string id, ItemDefinition deed, OrderKind kind,
+                                                     int unlockLevel, int minTypes, int maxTypes,
+                                                     int minQuantity, int maxQuantity,
+                                                     float coinMultiplier, float xpMultiplier,
+                                                     float bonusChance, int deedCount = 1)
         {
             var serialized = BeginAuthoring<OrderTemplateDefinition>(
                 Root + "/Orders/OrderTemplate_" + id + ".asset", out var asset);
@@ -612,26 +632,27 @@ namespace AlphaTown.EditorTools.Setup
             if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
-            AssetAuthoring.SetEnum(serialized, "_kind", (int)OrderKind.Helicopter);
-            AssetAuthoring.Set(serialized, "_unlockLevel", 1);
-            AssetAuthoring.Set(serialized, "_minItemTypes", 1);
-            AssetAuthoring.Set(serialized, "_maxItemTypes", 2);
-            AssetAuthoring.Set(serialized, "_minQuantityPerItem", 2);
-            AssetAuthoring.Set(serialized, "_maxQuantityPerItem", 8);
+            AssetAuthoring.SetEnum(serialized, "_kind", (int)kind);
+            AssetAuthoring.Set(serialized, "_unlockLevel", unlockLevel);
+            AssetAuthoring.Set(serialized, "_minItemTypes", minTypes);
+            AssetAuthoring.Set(serialized, "_maxItemTypes", maxTypes);
+            AssetAuthoring.Set(serialized, "_minQuantityPerItem", minQuantity);
+            AssetAuthoring.Set(serialized, "_maxQuantityPerItem", maxQuantity);
 
             // No expiry in the slice. A timer on the only coin source turns a first session into a
             // race, and the per-slot cooldown already paces the board.
             AssetAuthoring.Set(serialized, "_timeLimitSeconds", 0);
-            AssetAuthoring.Set(serialized, "_coinMultiplier", 1.7f);
-            AssetAuthoring.Set(serialized, "_xpMultiplier", 1f);
+            AssetAuthoring.Set(serialized, "_coinMultiplier", coinMultiplier);
+            AssetAuthoring.Set(serialized, "_xpMultiplier", xpMultiplier);
             AssetAuthoring.Set(serialized, "_bonusHardCurrency", 0);
-            AssetAuthoring.Set(serialized, "_bonusItemChance", 0.3f);
-            WriteItemAmounts(serialized, "_bonusItems", new[] { new Ingredient(deed, 1) });
+            AssetAuthoring.Set(serialized, "_bonusItemChance", bonusChance);
+            WriteItemAmounts(serialized, "_bonusItems", new[] { new Ingredient(deed, deedCount) });
             AssetAuthoring.Apply(serialized);
             return asset;
         }
 
-        static OrderBoardDefinition OrderBoard(string id, int[] slotCooldownSeconds)
+        static OrderBoardDefinition OrderBoard(string id, OrderKind kind, int[] slotCooldownSeconds,
+                                               int unlockLevel, int rerollBaseCost)
         {
             var serialized = BeginAuthoring<OrderBoardDefinition>(
                 Root + "/Orders/OrderBoard_" + id + ".asset", out var asset);
@@ -639,12 +660,13 @@ namespace AlphaTown.EditorTools.Setup
             if (serialized == null) return asset;
 
             AssetAuthoring.Set(serialized, "_id", id);
-            AssetAuthoring.SetEnum(serialized, "_kind", (int)OrderKind.Helicopter);
+            AssetAuthoring.SetEnum(serialized, "_kind", (int)kind);
+            AssetAuthoring.Set(serialized, "_unlockLevel", unlockLevel);
             AssetAuthoring.SetIntArray(serialized, "_slotCooldownSeconds", slotCooldownSeconds);
 
             // A reroll buys the slot's cooldown. Priced against what the order would have paid,
             // with a floor so clearing a worthless order still costs something.
-            AssetAuthoring.Set(serialized, "_rerollBaseCost", 40);
+            AssetAuthoring.Set(serialized, "_rerollBaseCost", rerollBaseCost);
             AssetAuthoring.Set(serialized, "_rerollCostPercent", 45);
             AssetAuthoring.Apply(serialized);
             return asset;

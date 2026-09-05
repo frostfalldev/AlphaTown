@@ -97,6 +97,10 @@ namespace AlphaTown.Tests.EditMode
         public const int TownWidth = 8;
         public const int TownHeight = 8;
         public const string HelicopterTemplate = "order.helicopter";
+        public const string TrainTemplate = "order.train";
+
+        /// <summary>The second board opens at town level 2, so a test can watch it appear.</summary>
+        public const int TrainUnlockLevel = 2;
 
         public const int BreadCoinValue = 20;
         public const int BreadXpValue = 4;
@@ -203,6 +207,27 @@ namespace AlphaTown.Tests.EditMode
         }
 
         /// <summary>Four helicopter slots, each cooling for ten minutes after its order clears.</summary>
+        /// <summary>
+        /// A second board, gated a level above the first, so multi-board behaviour — save
+        /// round-tripping, unlock gating, delivering to the right one — is testable at all.
+        /// </summary>
+        public static FakeOrderBoardDefinition TrainBoard() =>
+            new FakeOrderBoardDefinition(OrderKind.Train, 600, 900)
+            {
+                UnlockLevel = TrainUnlockLevel
+            };
+
+        public static FakeOrderTemplate TrainTemplateDefinition() =>
+            new FakeOrderTemplate(TrainTemplate, OrderKind.Train)
+            {
+                UnlockLevel = TrainUnlockLevel,
+                MinItemTypes = 1,
+                MaxItemTypes = 1,
+                MinQuantityPerItem = 3,
+                MaxQuantityPerItem = 3,
+                CoinMultiplier = 3f
+            };
+
         public static FakeOrderBoardDefinition DefaultOrderBoard() =>
             new FakeOrderBoardDefinition(
                 OrderKind.Helicopter,

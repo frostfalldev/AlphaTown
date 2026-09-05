@@ -95,6 +95,12 @@ namespace AlphaTown.Gameplay.Saving
     [Serializable]
     public sealed class OrderBoardSaveData
     {
+        /// <summary>
+        /// Which board this belonged to. Matched on load ahead of <see cref="Kind"/>, so two
+        /// boards of the same kind stay distinct.
+        /// </summary>
+        public string BoardId = string.Empty;
+
         public int Kind;
         public int NextOrderNumber = 1;
 

@@ -55,6 +55,7 @@ namespace AlphaTown.Gameplay.World
         readonly IEventBus _events;
         readonly CurrencyLedger _ledger = new CurrencyLedger();
         readonly List<Producer> _producers = new List<Producer>(16);
+        readonly List<OrderBoard> _boards = new List<OrderBoard>(2);
         readonly Dictionary<string, Producer> _producersByInstanceId = new Dictionary<string, Producer>(16);
 
         float _secondsSinceSync;
@@ -84,11 +85,7 @@ namespace AlphaTown.Gameplay.World
             Market = new Market(database, Barn, wallet, events);
 
             var generator = new OrderGenerator(database, random ?? new Random());
-            var boardDefinition = FindBoardDefinition(database, OrderKind.Helicopter)
-                                  ?? new FallbackOrderBoardDefinition(OrderKind.Helicopter);
-
-            HelicopterOrders = new OrderBoard(
-                boardDefinition, database, clock, events, progression, Barn, wallet, generator);
+            BuildBoards(database, clock, events, progression, wallet, generator);
 
             var town = database.TownDefinition;
             var gridSize = town != null && town.Size.IsValid ? town.Size : DefaultTownSize;
@@ -114,8 +111,34 @@ namespace AlphaTown.Gameplay.World
         /// <summary>Sells surplus for coins, at a rate poor enough to keep orders worth doing.</summary>
         public Market Market { get; }
 
-        /// <summary>TODO: train and ship boards join this as separate OrderBoard instances.</summary>
-        public OrderBoard HelicopterOrders { get; }
+        /// <summary>
+        /// Every delivery board the content defines, in the order it was authored.
+        ///
+        /// One per <see cref="IOrderBoardDefinition"/> rather than one per <see cref="OrderKind"/>,
+        /// so adding a ship board is a content change and not a code change.
+        /// </summary>
+        public IReadOnlyList<OrderBoard> OrderBoards => _boards;
+
+        /// <summary>
+        /// The everyday board. Named because it is the one the whole loop is tuned around, and
+        /// because most callers only ever want that one.
+        /// </summary>
+        public OrderBoard HelicopterOrders { get; private set; }
+
+        /// <summary>Finds the board holding an order, wherever it lives.</summary>
+        public bool TryGetBoardFor(string orderId, out OrderBoard board)
+        {
+            for (var i = 0; i < _boards.Count; i++)
+            {
+                if (!_boards[i].TryGetOrder(orderId, out _)) continue;
+
+                board = _boards[i];
+                return true;
+            }
+
+            board = null;
+            return false;
+        }
 
         public IReadOnlyList<Producer> Producers => _producers;
 
@@ -322,7 +345,7 @@ namespace AlphaTown.Gameplay.World
             ApplyStorageUpgrades();
 
             for (var i = 0; i < _producers.Count; i++) _producers[i].Sync();
-            HelicopterOrders.Sync();
+            for (var i = 0; i < _boards.Count; i++) _boards[i].Sync();
         }
 
         /// <summary>
@@ -374,7 +397,7 @@ namespace AlphaTown.Gameplay.World
                     Attribution = ToAttributionData(this.Progression.SnapshotAttribution())
                 },
                 Producers = new ProducerSaveData[_producers.Count],
-                OrderBoards = new[] { ToBoardData(HelicopterOrders) },
+                OrderBoards = ToBoardData(_boards),
                 Town = ToTownData(this.Buildings, this.Expansion)
             };
 
@@ -448,6 +471,13 @@ namespace AlphaTown.Gameplay.World
             Sync();
         }
 
+        /// <summary>
+        /// Puts each saved board back on the board it came from.
+        ///
+        /// Matched by definition id, falling back to kind for saves written before boards were
+        /// named. A saved board whose definition has since been deleted is dropped rather than
+        /// dragging the rest of the save down with it.
+        /// </summary>
         void RestoreBoards(OrderBoardSaveData[] boards)
         {
             if (boards == null) return;
@@ -455,7 +485,17 @@ namespace AlphaTown.Gameplay.World
             for (var i = 0; i < boards.Length; i++)
             {
                 var data = boards[i];
-                if (data == null || (OrderKind)data.Kind != HelicopterOrders.Kind) continue;
+                if (data == null) continue;
+
+                var board = FindBoard(data);
+                if (board == null)
+                {
+                    Log.Error("World",
+                        "Save holds a board ('" + (data.BoardId ?? string.Empty) + "', kind " +
+                        (OrderKind)data.Kind + ") that no longer exists. Dropping it.");
+
+                    continue;
+                }
 
                 // Built in one pass so order and slot index stay aligned even when an entry is
                 // skipped as malformed.
@@ -463,25 +503,63 @@ namespace AlphaTown.Gameplay.World
                 var slots = new List<int>(orders.Capacity);
                 ToOrdersAndSlots(data.Orders, orders, slots);
 
-                HelicopterOrders.RestoreState(
-                    orders, slots, data.SlotNextAvailableAtTicks, data.NextOrderNumber);
-                return;
+                board.RestoreState(orders, slots, data.SlotNextAvailableAtTicks, data.NextOrderNumber);
             }
         }
 
-        /// <summary>
-        /// Board pacing is authored per kind. Without a definition the fallback still applies a
-        /// cooldown — an instantly refilling board is unbounded income, and a project that has not
-        /// tuned its pacing should not find that out in production.
-        /// </summary>
-        static IOrderBoardDefinition FindBoardDefinition(IGameDatabase database, OrderKind kind)
+        OrderBoard FindBoard(OrderBoardSaveData data)
         {
-            var boards = database.OrderBoards;
-            if (boards == null) return null;
-
-            for (var i = 0; i < boards.Count; i++)
+            if (!string.IsNullOrEmpty(data.BoardId))
             {
-                if (boards[i] != null && boards[i].Kind == kind) return boards[i];
+                for (var i = 0; i < _boards.Count; i++)
+                {
+                    if (_boards[i].Id == data.BoardId) return _boards[i];
+                }
+            }
+
+            for (var i = 0; i < _boards.Count; i++)
+            {
+                if (_boards[i].Kind == (OrderKind)data.Kind) return _boards[i];
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// One board per authored definition. With none authored the helicopter board is still
+        /// built from a fallback, because a game with no way to deliver anything is not a game.
+        /// </summary>
+        void BuildBoards(IGameDatabase database, IGameClock clock, IEventBus events,
+                         ITownProgression progression, IWallet wallet, OrderGenerator generator)
+        {
+            var definitions = database.OrderBoards;
+
+            if (definitions != null)
+            {
+                for (var i = 0; i < definitions.Count; i++)
+                {
+                    if (definitions[i] == null) continue;
+
+                    _boards.Add(new OrderBoard(
+                        definitions[i], database, clock, events, progression, Barn, wallet, generator));
+                }
+            }
+
+            if (_boards.Count == 0)
+            {
+                _boards.Add(new OrderBoard(
+                    new FallbackOrderBoardDefinition(OrderKind.Helicopter),
+                    database, clock, events, progression, Barn, wallet, generator));
+            }
+
+            HelicopterOrders = FindByKind(OrderKind.Helicopter) ?? _boards[0];
+        }
+
+        OrderBoard FindByKind(OrderKind kind)
+        {
+            for (var i = 0; i < _boards.Count; i++)
+            {
+                if (_boards[i].Kind == kind) return _boards[i];
             }
 
             return null;
@@ -573,11 +651,19 @@ namespace AlphaTown.Gameplay.World
             return result;
         }
 
+        static OrderBoardSaveData[] ToBoardData(IReadOnlyList<OrderBoard> boards)
+        {
+            var data = new OrderBoardSaveData[boards.Count];
+            for (var i = 0; i < boards.Count; i++) data[i] = ToBoardData(boards[i]);
+            return data;
+        }
+
         static OrderBoardSaveData ToBoardData(OrderBoard board)
         {
             var orders = board.Orders;
             var data = new OrderBoardSaveData
             {
+                BoardId = board.Id,
                 Kind = (int)board.Kind,
                 NextOrderNumber = board.NextOrderNumber,
                 SlotNextAvailableAtTicks = new long[board.SlotCount],

@@ -220,6 +220,8 @@ namespace AlphaTown.Tests.EditMode
         public OrderKind Kind { get; }
         public int SlotCount => _cooldownSeconds.Length;
 
+        public int UnlockLevel { get; set; } = 1;
+
         public int RerollBaseCost { get; set; } = TestContent.RerollBaseCost;
         public int RerollCostPercent { get; set; } = TestContent.RerollCostPercent;
 
@@ -465,6 +467,13 @@ namespace AlphaTown.Tests.EditMode
         {
             _buildings[building.Id] = building;
             _buildingList.Add(building);
+            return this;
+        }
+
+        /// <summary>For the case that has to keep working: content that authored no boards.</summary>
+        public FakeDatabase ClearOrderBoards()
+        {
+            _orderBoards.Clear();
             return this;
         }
 

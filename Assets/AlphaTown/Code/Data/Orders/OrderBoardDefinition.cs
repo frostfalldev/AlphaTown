@@ -13,6 +13,10 @@ namespace AlphaTown.Data.Orders
                  "The array length is the slot count. Zero refills immediately.")]
         int[] _slotCooldownSeconds = { 300, 300, 300, 300 };
 
+        [SerializeField, Min(1)]
+        [Tooltip("Town level before this board appears at all.")]
+        int _unlockLevel = 1;
+
         [Header("Rerolling")]
         [SerializeField, Min(0)]
         [Tooltip("Least a reroll can cost. Zero makes the board a free slot machine.")]
@@ -23,6 +27,7 @@ namespace AlphaTown.Data.Orders
         int _rerollCostPercent = 40;
 
         public OrderKind Kind => _kind;
+        public int UnlockLevel => _unlockLevel;
         public int RerollBaseCost => _rerollBaseCost;
         public int RerollCostPercent => _rerollCostPercent;
 

@@ -166,7 +166,8 @@ Everything below is data, changeable without a code change:
 | Starting balances and currency caps | `CurrencyDefinition` |
 | Build and upgrade costs, build times | `BuildingDefinition` levels |
 | Buildable town size | `TownDefinition` |
-| Order slot count and cooldowns | `OrderBoardDefinition` |
+| Order slot count, cooldowns and unlock level | `OrderBoardDefinition` |
+| How many boards exist at all | add an `OrderBoardDefinition` to the database |
 | Reroll floor and reward percentage | `OrderBoardDefinition` |
 | Land deed drop rate | `OrderTemplateDefinition` bonus items and chance |
 | Land cost and unlock order | `ExpansionDefinition` |
@@ -244,6 +245,32 @@ Three guards, all tested:
 The only place to buy is the order card, on a request line the barn cannot cover, showing the
 price on the button rather than behind it — because the answer to "should I buy this?" is nearly
 always no, and the player deserves to see that before tapping.
+
+## Two boards
+
+One `OrderBoard` per authored `OrderBoardDefinition`, so a third is a content change rather than a
+code change. The kind an order belongs to picks its templates, and everything else — pacing,
+payout, reroll price, unlock level — is per board.
+
+| | Helicopter | Train |
+| --- | --- | --- |
+| Opens at | level 1 | level 3 |
+| Slots | 4 | 3 |
+| Cooldowns | 2–5 min | 15–40 min |
+| Asks for | 1–2 goods, 2–8 each | 2–3 goods, 6–14 each |
+| Pays | 1.7x coins, 1x XP | 2.6x coins, 1.8x XP |
+| Deed chance | 30%, one deed | 60%, two deeds |
+
+The difference between them is the decision. The helicopter board is the everyday faucet: small,
+quick, forgiving, and it will take whatever you have. The train asks for goods in bulk and pays
+half again as well, on cooldowns long enough that you cannot live off it — which turns "dump
+everything into helicopter orders" into "hold some back". It is also where most land deeds come
+from, so expansion pace is tied to the board that rewards patience.
+
+A locked board generates nothing and starts no cooldowns, so reaching level 3 hands over all three
+slots at once. Order ids are scoped to their board (`train_board.order_4`), because two boards
+counting from one would otherwise mint the same id twice — and an id matching two orders means
+delivering one could complete the other.
 
 ## Rerolling: the recurring coin decision
 

@@ -163,6 +163,7 @@ Everything below is data, changeable without a code change:
 | Level pacing and level rewards | `ProgressionCurve` |
 | Recipe gating | `RecipeDefinition.UnlockLevel` |
 | Order size, timers, payout scaling | `OrderTemplateDefinition` |
+| How much of each good an order wants | `OrderTemplateDefinition.ValuePerItemType` |
 | Starting balances and currency caps | `CurrencyDefinition` |
 | Build and upgrade costs, build times | `BuildingDefinition` levels |
 | Buildable town size | `TownDefinition` |
@@ -246,31 +247,52 @@ The only place to buy is the order card, on a request line the barn cannot cover
 price on the button rather than behind it — because the answer to "should I buy this?" is nearly
 always no, and the player deserves to see that before tapping.
 
-## Two boards
+## Three boards
 
-One `OrderBoard` per authored `OrderBoardDefinition`, so a third is a content change rather than a
-code change. The kind an order belongs to picks its templates, and everything else — pacing,
-payout, reroll price, unlock level — is per board.
+One `OrderBoard` per authored `OrderBoardDefinition`. The kind an order belongs to picks its
+templates; everything else — pacing, payout, reroll price, unlock level — is per board. Adding the
+ship board was content only, no code.
 
-| | Helicopter | Train |
-| --- | --- | --- |
-| Opens at | level 1 | level 3 |
-| Slots | 4 | 3 |
-| Cooldowns | 2–5 min | 15–40 min |
-| Asks for | 1–2 goods, 2–8 each | 2–3 goods, 6–14 each |
-| Pays | 1.7x coins, 1x XP | 2.6x coins, 1.8x XP |
-| Deed chance | 30%, one deed | 60%, two deeds |
+| | Helicopter | Train | Ship |
+| --- | --- | --- | --- |
+| Opens at | level 1 | level 3 | level 5 |
+| Slots | 4 | 3 | 2 |
+| Cooldowns | 2–5 min | 15–40 min | 2–3 hours |
+| Asks for | 1–2 goods | 2–3 goods | 3–4 goods |
+| Value wanted per good | flat 2–8 | ~90 coins | ~220 coins |
+| Pays | 1.7x coins, 1x XP | 2.6x, 1.8x | 3.6x, 2.5x |
+| Deeds | 30%, one | 60%, two | **always**, three |
 
-The difference between them is the decision. The helicopter board is the everyday faucet: small,
-quick, forgiving, and it will take whatever you have. The train asks for goods in bulk and pays
-half again as well, on cooldowns long enough that you cannot live off it — which turns "dump
-everything into helicopter orders" into "hold some back". It is also where most land deeds come
-from, so expansion pace is tied to the board that rewards patience.
+The spread between them is the decision. The helicopter is the everyday faucet: small, quick,
+forgiving, and it takes whatever you have. The train pays half again as well on cooldowns long
+enough that you cannot live off it, which turns "dump everything into helicopter orders" into
+"hold some back". The ship is the long game — two slots, hours apart, and the only board that
+always pays deeds, so once it opens it is what keeps expansion moving and what makes a stocked
+barn worth more than a cleared one.
 
-A locked board generates nothing and starts no cooldowns, so reaching level 3 hands over all three
-slots at once. Order ids are scoped to their board (`train_board.order_4`), because two boards
+A locked board generates nothing and starts no cooldowns, so reaching its level hands over every
+slot at once. Order ids are scoped to their board (`ship_board.order_4`), because boards each
 counting from one would otherwise mint the same id twice — and an id matching two orders means
 delivering one could complete the other.
+
+### Sizing orders by value, not by count
+
+A flat quantity range asks for as many cakes as wheat. That is harmless on a helicopter order and
+absurd on a ship: eighteen cakes is hours of production and dozens of crops, eighteen wheat is one
+field. An unfillable slot the player must pay to reroll is the worst possible use of a reroll.
+
+So above a certain size, `ValuePerItemType` decides the count and the quantity range becomes only a
+floor and a ceiling:
+
+```
+count = clamp(ValuePerItemType / item.CoinValue, Min, Max)   ±25% for variety
+```
+
+A ship budget of 220 coins asks for about 20 wheat, 6 bread, or 2 cakes — every line of the order
+costing roughly the same effort. `CoinValue` is the yardstick because it is already the one number
+that prices an item across the whole economy. Leaving the budget at zero keeps the flat range,
+which is what the helicopter board does: at level 1 there is only one good unlocked, so there is
+nothing to balance between.
 
 ## Rerolling: the recurring coin decision
 

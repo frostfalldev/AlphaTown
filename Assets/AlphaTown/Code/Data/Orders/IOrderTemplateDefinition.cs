@@ -25,6 +25,20 @@ namespace AlphaTown.Data.Orders
         int MinQuantityPerItem { get; }
         int MaxQuantityPerItem { get; }
 
+        /// <summary>
+        /// Roughly how much an order should want of each good, measured in coin value rather than
+        /// units. Zero keeps the flat quantity range above.
+        ///
+        /// A flat range treats wheat and cake as the same ask, which is fine while orders are
+        /// small and absurd once they are not: eighteen cakes is hours of bakery time and fifty
+        /// crops, where eighteen wheat is one field. Sizing by value asks for cheap goods in bulk
+        /// and expensive ones in handfuls, so every line of an order costs about the same effort.
+        ///
+        /// <see cref="Items.IItemDefinition.CoinValue"/> is the yardstick because it is already
+        /// the one number that prices an item across the whole economy.
+        /// </summary>
+        int ValuePerItemType { get; }
+
         /// <summary>Zero means the order never expires.</summary>
         TimeSpan TimeLimit { get; }
 

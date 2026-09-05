@@ -16,8 +16,8 @@ namespace AlphaTown.EditorTools.Setup
 {
     /// <summary>
     /// Generates a starting town's worth of content: two crops and a hen coop, a mill, a bakery
-    /// and a patisserie, a granary, two decorations, a helicopter and a train board, three parcels
-    /// of land, and the database that ties them together.
+    /// and a patisserie, a granary, two decorations, three delivery boards, three parcels of land,
+    /// and the database that ties them together.
     ///
     /// This exists because the slice needs numbers to be playable, and hand-authoring thirty
     /// interlinked assets before the loop can be tried once is the wrong order to find out the
@@ -299,12 +299,28 @@ namespace AlphaTown.EditorTools.Setup
             var board = OrderBoard("helicopter_board", OrderKind.Helicopter,
                 new[] { 120, 180, 240, 300 }, unlockLevel: 1, rerollBaseCost: 40);
 
+            // From here the quantity range becomes a floor and a ceiling rather than the ask
+            // itself: the value budget decides how many, so a train wants a sack of wheat or a
+            // couple of cakes rather than fourteen of either.
             var trainTemplate = OrderTemplate("train_bulk", deed, OrderKind.Train,
-                unlockLevel: 3, minTypes: 2, maxTypes: 3, minQuantity: 6, maxQuantity: 14,
-                coinMultiplier: 2.6f, xpMultiplier: 1.8f, bonusChance: 0.6f, deedCount: 2);
+                unlockLevel: 3, minTypes: 2, maxTypes: 3, minQuantity: 2, maxQuantity: 14,
+                coinMultiplier: 2.6f, xpMultiplier: 1.8f, bonusChance: 0.6f, deedCount: 2,
+                valuePerItemType: 90);
 
             var trainBoard = OrderBoard("train_board", OrderKind.Train,
                 new[] { 900, 1500, 2400 }, unlockLevel: 3, rerollBaseCost: 250);
+
+            // The ship is the long game: two slots, hours apart, asking for three or four goods at
+            // once. It is the only board that always pays deeds, so once it opens it becomes the
+            // reason expansion keeps moving — and the reason to keep a stocked barn rather than
+            // clearing it into helicopter orders the moment anything ripens.
+            var shipTemplate = OrderTemplate("ship_cargo", deed, OrderKind.Ship,
+                unlockLevel: 5, minTypes: 3, maxTypes: 4, minQuantity: 2, maxQuantity: 20,
+                coinMultiplier: 3.6f, xpMultiplier: 2.5f, bonusChance: 1f, deedCount: 3,
+                valuePerItemType: 220);
+
+            var shipBoard = OrderBoard("ship_board", OrderKind.Ship,
+                new[] { 7200, 10800 }, unlockLevel: 5, rerollBaseCost: 900);
 
             // --- Land --------------------------------------------------------------------------
             var town = Town(width: 24, height: 24, startX: 8, startY: 8, startWidth: 8, startHeight: 8);
@@ -348,13 +364,14 @@ namespace AlphaTown.EditorTools.Setup
             Register(serialized, "_producers", new Object[] { field, coop, mill, bakery, patisserie });
             Register(serialized, "_storages", new Object[] { barn });
             Register(serialized, "_currencies", new Object[] { coins, gems });
-            Register(serialized, "_orderTemplates", new Object[] { template, trainTemplate });
+            Register(serialized, "_orderTemplates",
+                new Object[] { template, trainTemplate, shipTemplate });
             Register(serialized, "_buildings", new Object[]
             {
                 plot, coopBuilding, millBuilding, bakeryBuilding, patisserieBuilding,
                 granary, flowerBed, fountain
             });
-            Register(serialized, "_orderBoards", new Object[] { board, trainBoard });
+            Register(serialized, "_orderBoards", new Object[] { board, trainBoard, shipBoard });
             Register(serialized, "_expansions", new Object[] { north, east, northEast });
 
             // The well-known slots name which of the above the game reaches for by default. An
@@ -624,7 +641,8 @@ namespace AlphaTown.EditorTools.Setup
                                                      int unlockLevel, int minTypes, int maxTypes,
                                                      int minQuantity, int maxQuantity,
                                                      float coinMultiplier, float xpMultiplier,
-                                                     float bonusChance, int deedCount = 1)
+                                                     float bonusChance, int deedCount = 1,
+                                                     int valuePerItemType = 0)
         {
             var serialized = BeginAuthoring<OrderTemplateDefinition>(
                 Root + "/Orders/OrderTemplate_" + id + ".asset", out var asset);
@@ -638,6 +656,7 @@ namespace AlphaTown.EditorTools.Setup
             AssetAuthoring.Set(serialized, "_maxItemTypes", maxTypes);
             AssetAuthoring.Set(serialized, "_minQuantityPerItem", minQuantity);
             AssetAuthoring.Set(serialized, "_maxQuantityPerItem", maxQuantity);
+            AssetAuthoring.Set(serialized, "_valuePerItemType", valuePerItemType);
 
             // No expiry in the slice. A timer on the only coin source turns a first session into a
             // race, and the per-slot cooldown already paces the board.

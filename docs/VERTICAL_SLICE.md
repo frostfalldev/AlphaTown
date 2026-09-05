@@ -146,7 +146,7 @@ Four field plots, 500 coins, 10 gems, 4 wheat, and a 50-space barn on an 8×8 pa
 | Crops | Wheat (60s), Corn (180s, level 2), Eggs (240s, level 2) |
 | Chains | Wheat ▸ Flour (mill, level 2) ▸ Bread (bakery, level 3)<br>Flour + Eggs ▸ Cake (patisserie, level 4) |
 | Decorations | Flower bed (level 1) upgrading into a fountain (level 3) |
-| Orders | Helicopter: 4 slots, 2–5 min cooldowns, 30% deed chance<br>Train (level 3): 3 slots, 15–40 min, bulk asks, 2.6x coins, 60% for two deeds |
+| Orders | Helicopter: 4 slots, 2–5 min, 30% deed chance<br>Train (level 3): 3 slots, 15–40 min, 2.6x coins, 60% for two deeds<br>Ship (level 5): 2 slots, 2–3 hours, 3.6x coins, always three deeds |
 | Land | Three 8×8 parcels gated on 1, 2 and 3 deeds plus coins |
 | Levels | Eight, at 60 / 150 / 320 / 620 / 1100 / 1900 / 3200 / 5000 XP |
 

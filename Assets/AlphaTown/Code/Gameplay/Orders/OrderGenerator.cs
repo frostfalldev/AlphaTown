@@ -79,7 +79,7 @@ namespace AlphaTown.Gameplay.Orders
                 var itemId = _drawPile[pick];
                 _drawPile.RemoveAt(pick);
 
-                var quantity = RandomInclusive(template.MinQuantityPerItem, template.MaxQuantityPerItem);
+                var quantity = QuantityFor(template, itemId);
                 requests.Add(new ItemStack(itemId, quantity));
 
                 if (!_database.TryGetItem(itemId, out var item)) continue;
@@ -97,6 +97,43 @@ namespace AlphaTown.Gameplay.Orders
 
             return new Order(orderId, template.Id, template.Kind, requests, rewards, itemRewards,
                 xpReward, nowTicks, expiresAt);
+        }
+
+        /// <summary>
+        /// How many of one good to ask for.
+        ///
+        /// With no value budget authored this is the flat range, which is right while orders are
+        /// small. Above that, the count is sized so each line of an order is worth about the same
+        /// — cheap crops in bulk, expensive goods in handfuls — because a flat range on a large
+        /// order produces asks nobody can fill, and an unfillable slot the player must pay to
+        /// reroll is the worst possible use of a reroll.
+        ///
+        /// A quarter's variance around the target keeps orders from looking machine-made without
+        /// letting any of them drift back to impossible.
+        /// </summary>
+        int QuantityFor(IOrderTemplateDefinition template, string itemId)
+        {
+            var min = template.MinQuantityPerItem;
+            var max = template.MaxQuantityPerItem;
+            if (max < min) max = min;
+
+            if (template.ValuePerItemType <= 0) return RandomInclusive(min, max);
+            if (!_database.TryGetItem(itemId, out var item) || item.CoinValue <= 0)
+                return RandomInclusive(min, max);
+
+            var target = template.ValuePerItemType / item.CoinValue;
+            if (target < min) target = min;
+            if (target > max) target = max;
+
+            var spread = target / 4;
+            var low = target - spread;
+            var high = target + spread;
+
+            if (low < min) low = min;
+            if (high > max) high = max;
+            if (high < low) high = low;
+
+            return RandomInclusive(low, high);
         }
 
         /// <summary>Every storable item that some unlocked recipe can produce.</summary>

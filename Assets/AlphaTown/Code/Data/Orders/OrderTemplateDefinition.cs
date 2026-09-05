@@ -19,6 +19,11 @@ namespace AlphaTown.Data.Orders
         [SerializeField, Min(1)] int _maxQuantityPerItem = 5;
 
         [SerializeField, Min(0)]
+        [Tooltip("Coin value wanted of each good, sizing cheap goods in bulk and dear ones in " +
+                 "handfuls. 0 keeps the flat range above.")]
+        int _valuePerItemType;
+
+        [SerializeField, Min(0)]
         [Tooltip("Seconds before the order expires. Zero means it never does.")]
         int _timeLimitSeconds;
 
@@ -44,6 +49,7 @@ namespace AlphaTown.Data.Orders
         public int MaxItemTypes => Mathf.Max(_minItemTypes, _maxItemTypes);
         public int MinQuantityPerItem => _minQuantityPerItem;
         public int MaxQuantityPerItem => Mathf.Max(_minQuantityPerItem, _maxQuantityPerItem);
+        public int ValuePerItemType => _valuePerItemType;
         public TimeSpan TimeLimit => TimeSpan.FromSeconds(_timeLimitSeconds);
         public float CoinMultiplier => _coinMultiplier;
         public float XpMultiplier => _xpMultiplier;

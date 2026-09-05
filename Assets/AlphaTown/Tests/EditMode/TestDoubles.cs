@@ -195,6 +195,7 @@ namespace AlphaTown.Tests.EditMode
         public int MaxItemTypes { get; set; } = 1;
         public int MinQuantityPerItem { get; set; } = 1;
         public int MaxQuantityPerItem { get; set; } = 1;
+        public int ValuePerItemType { get; set; }
         public TimeSpan TimeLimit { get; set; } = TimeSpan.Zero;
         public float CoinMultiplier { get; set; } = 1f;
         public float XpMultiplier { get; set; } = 1f;

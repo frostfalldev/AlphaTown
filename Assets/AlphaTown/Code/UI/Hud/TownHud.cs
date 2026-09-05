@@ -29,7 +29,11 @@ namespace AlphaTown.UI.Hud
             None = 0,
             Barn = 1,
             Orders = 2,
-            Build = 3
+            Build = 3,
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug = 4
+#endif
         }
 
         [SerializeField] GameRunner _runner;
@@ -49,6 +53,9 @@ namespace AlphaTown.UI.Hud
         ResourceBar _resourceBar;
         ContextPanel _contextPanel;
         BarnPanel _barnPanel;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        DebugPanel _debugPanel;
+#endif
         OrderPanel _orderPanel;
         BuildMenu _buildMenu;
 
@@ -185,6 +192,15 @@ namespace AlphaTown.UI.Hud
             buttons.Add(UiKit.Action("Barn", () => Toggle(Overlay.Barn)));
             buttons.Add(UiKit.Action("Orders", () => Toggle(Overlay.Orders)));
             buttons.Add(UiKit.Action("Build", () => Toggle(Overlay.Build)));
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            _debugPanel = new DebugPanel(_runner.Debug, Report);
+
+            var debug = UiKit.Action("Debug", () => Toggle(Overlay.Debug));
+            debug.style.backgroundColor = new Color(0.34f, 0.22f, 0.16f);
+            buttons.Add(debug);
+#endif
+
             bottom.Add(buttons);
 
             root.Add(bottom);
@@ -213,6 +229,16 @@ namespace AlphaTown.UI.Hud
 
             _resourceBar.Refresh(world);
             _contextPanel.Refresh(_selection);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // Kept out of the switch below: a preprocessor directive inside a switch body is legal
+            // but defeats the repo's syntax check, and a checker that cries wolf stops being read.
+            if (_screen == Overlay.Debug)
+            {
+                _debugPanel.Refresh(world);
+                return;
+            }
+#endif
 
             switch (_screen)
             {
@@ -299,6 +325,10 @@ namespace AlphaTown.UI.Hud
 
             _screen = screen;
             _overlay.Clear();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (screen == Overlay.Debug) _overlay.Add(_debugPanel.Root);
+#endif
 
             switch (screen)
             {

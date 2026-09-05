@@ -95,6 +95,13 @@ namespace AlphaTown.Gameplay.Bootstrap
         /// <summary>Every player-facing action, for the UI. Null until Awake has run.</summary>
         public TownCommands Commands => _commands;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>Cheats for reaching content that is otherwise hours away. Dev builds only.</summary>
+        public DebugCommands Debug => _debug;
+
+        DebugCommands _debug;
+#endif
+
         public IGameDatabase Database => _database;
 
         /// <summary>Whether this session's timers can be believed. See TimeTrust.</summary>
@@ -125,6 +132,9 @@ namespace AlphaTown.Gameplay.Bootstrap
 
             _world = new GameWorld(_database, _clock, _events);
             _commands = new TownCommands(_world, _database, _clock);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            _debug = new DebugCommands(_world, _database, _clock);
+#endif
 
             _services = new ServiceRegistry();
             _services.Register<IEventBus>(_events);

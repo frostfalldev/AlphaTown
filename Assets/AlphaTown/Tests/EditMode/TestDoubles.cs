@@ -28,8 +28,10 @@ namespace AlphaTown.Tests.EditMode
     internal sealed class FakeItem : IItemDefinition
     {
         public FakeItem(string id, int storageCost = 1, bool isStorable = true,
-                        int coinValue = 10, int xpValue = 2, int sellValue = 0)
+                        int coinValue = 10, int xpValue = 2, int sellValue = 0,
+                        ItemCategory category = ItemCategory.Ingredient)
         {
+            Category = category;
             Id = id;
             StorageCost = storageCost;
             IsStorable = isStorable;
@@ -40,7 +42,7 @@ namespace AlphaTown.Tests.EditMode
 
         public string Id { get; }
         public string DisplayNameKey => "item." + Id;
-        public ItemCategory Category => ItemCategory.Ingredient;
+        public ItemCategory Category { get; }
         public int StorageCost { get; }
         public bool IsStorable { get; }
         public int CoinValue { get; }

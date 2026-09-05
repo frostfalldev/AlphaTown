@@ -171,7 +171,10 @@ namespace AlphaTown.Tests.EditMode
         {
             // A deed is an item that costs no barn space — the cleanest way to hold a token the
             // player never stockpiles by the hundred.
-            database.WithItem(new FakeItem(Deed, isStorable: false, coinValue: 0, xpValue: 0));
+            // Special, like the real deed. Category drives the resource bar's fallback and the
+            // debug grant, so a fake that got it wrong would hide bugs in both.
+            database.WithItem(new FakeItem(Deed, isStorable: false, coinValue: 0, xpValue: 0,
+                category: ItemCategory.Special));
 
             database.WithExpansion(new FakeExpansionDefinition(
                 ExpansionEast,

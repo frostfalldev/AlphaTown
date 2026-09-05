@@ -225,6 +225,34 @@ Roughly in order of value per hour spent:
 
 ---
 
+## Reaching the late game
+
+The ship board opens at town level 5 and refills every few hours. Reaching that honestly is an
+evening's play, and content nobody can reach is content nobody has checked — so a development
+build carries a **Debug** button next to Barn, Orders and Build.
+
+| | |
+| --- | --- |
+| **Level up** | Exactly one level. Four taps opens the ship board. |
+| **+1000 coins**, **+25 gems** | For anything priced out of reach. |
+| **Fill barn** | 25 of every storable good — the only practical way to fill a ship order. |
+| **+5 deeds** | Land, without waiting on the drop chance. |
+| **Skip 1h / 8h / 3d** | Jumps the clock and catches the world up. |
+
+Skipping time is the most useful of them, and the one that proves the architecture: every timer is
+an absolute timestamp, so a skip resolves production, construction, slot cooldowns and order expiry
+in a single pass — through exactly the code path a player returning in the morning takes. The clock
+offset is not saved, so a restart undoes the jump; what it produced stays, as an ordinary absence
+would.
+
+Every grant is attributed to the `DebugGrant` reason codes, so a test session can never be mistaken
+for a real one in the economy numbers.
+
+> **The whole thing is compiled out of release builds** — `DebugCommands`, `DebugPanel` and the
+> button that opens it. Not merely hidden: a cheat API present in a shipped binary is a cheat API,
+> whatever the UI does or does not call. `./tools/build-android.sh` builds development by default,
+> so it is there; `--release` will not have it.
+
 ## Input backends
 
 The slice works whatever **Project Settings ▸ Player ▸ Active Input Handling** is set to. It did

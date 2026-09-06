@@ -38,7 +38,7 @@ under **AlphaTown ▸ Content** and can be re-run independently.
 That makes it safe to run whenever, and useful as a way to fill gaps rather than something to be
 careful around.
 
-Two consequences worth knowing:
+Three consequences worth knowing:
 
 - **The `GameDatabase` is the exception, and it merges.** It is an index, not content: skipping it
   would leave a newly created definition on disk that the game cannot see. Anything already listed
@@ -46,6 +46,12 @@ Two consequences worth knowing:
   by hand survives, and a generated one you deleted comes back. The well-known slots
   (`_softCurrency`, `_defaultStorage`, and so on) are filled only when empty, so pointing one
   somewhere else sticks.
+- **A producer that already exists still gets the generator's new recipes.** Its tiers are tuning
+  and stay yours; its recipe list is the link that decides whether a recipe the generator just
+  wrote can be run by anything at all. Leaving that alone is how a new good ends up in the database
+  with no building able to make it — silent, and indistinguishable from the feature never
+  shipping. So recipes merge the same way the database's lists do, and each one added is named in
+  the console rather than done quietly. A recipe you deliberately deleted by hand will come back.
 - **To reset to the shipped defaults**, use **AlphaTown ▸ Content ▸ Rebuild Sample Content
   (overwrite)**. It asks first, because it is the one entry point that can lose work. Assets you
   created yourself are still not touched — it only rewrites the ones this generator authors.
@@ -64,11 +70,11 @@ None of those throw. The game runs, and the player finds a pen that produces som
 only sell back at a loss — which is exactly the bug that was in this content until the kitchen was
 added. It costs one console line to know instead.
 
-The check that matters most after a content change is **"No producer runs this recipe."** Because
-the generator leaves existing assets alone, adding a recipe to a producer that is already on disk
-does nothing on your machine: the recipe asset appears, the database lists it, and no building can
-run it. If you see that warning after pulling new content, the fix is **Rebuild Sample Content
-(overwrite)**, or deleting just the producer asset it names and generating again.
+**The build refuses to run on a graph with errors.** `build-android.sh` validates after the
+content and scene steps and before compiling the player, because a broken graph does not fail a
+player build — it produces an APK where a building makes nothing, which costs an install, a launch
+and ten minutes of play to find. Warnings are printed and allowed through; only a graph that
+cannot work stops the build. `--skip-setup` bypasses the whole chain, validation included.
 
 The validator itself lives in `Data/Validation` and works on the interfaces, so it runs in the
 Editor against generated assets and in `ContentValidatorTests` against a hand-built database, with

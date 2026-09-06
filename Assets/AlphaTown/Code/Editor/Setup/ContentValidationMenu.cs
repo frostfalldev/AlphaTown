@@ -19,7 +19,14 @@ namespace AlphaTown.EditorTools.Setup
         const string DatabasePath = "Assets/AlphaTown/Content/GameDatabase.asset";
 
         [MenuItem("AlphaTown/Content/Validate Content", false, 24)]
-        internal static void Validate()
+        internal static void Validate() => ValidateProject();
+
+        /// <summary>
+        /// Validates the database on disk and returns how many errors it found, or -1 when there
+        /// is no database to read. Called by the build so a broken graph is caught in a second
+        /// rather than after ten minutes of compiling a player around it.
+        /// </summary>
+        internal static int ValidateProject()
         {
             var database = AssetDatabase.LoadAssetAtPath<GameDatabase>(DatabasePath);
             if (database == null)
@@ -27,13 +34,13 @@ namespace AlphaTown.EditorTools.Setup
                 Debug.LogError("[AlphaTown] No database at " + DatabasePath +
                                ". Run AlphaTown ▸ Content ▸ Build Sample Content first.");
 
-                return;
+                return -1;
             }
 
             // The asset caches its indexes, and a generate run in this same session will have left
             // stale ones behind. Validating yesterday's graph is worse than not validating.
             database.Reindex();
-            Report(database);
+            return Report(database);
         }
 
         /// <summary>

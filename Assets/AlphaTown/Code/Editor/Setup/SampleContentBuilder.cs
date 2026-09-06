@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AlphaTown.Data.Buildings;
 using AlphaTown.Data.Catalog;
 using AlphaTown.Data.Economy;
@@ -48,6 +49,7 @@ namespace AlphaTown.EditorTools.Setup
 
         static int _written;
         static int _skipped;
+        static int _relinked;
 
         [MenuItem("AlphaTown/Content/Build Sample Content", false, 20)]
         internal static void Build() => Run(overwriteExisting: false);
@@ -78,6 +80,7 @@ namespace AlphaTown.EditorTools.Setup
             _overwriteExisting = overwriteExisting;
             _written = 0;
             _skipped = 0;
+            _relinked = 0;
 
             GameDatabase database = null;
 
@@ -95,7 +98,9 @@ namespace AlphaTown.EditorTools.Setup
             }
 
             Debug.Log("[AlphaTown] Sample content: " + _written + " asset(s) written, " +
-                      _skipped + " left alone, under " + Root + "." +
+                      _skipped + " left alone" +
+                      (_relinked > 0 ? ", " + _relinked + " producer(s) given new recipes" : string.Empty) +
+                      ", under " + Root + "." +
                       (_skipped > 0
                           ? "\n  Existing assets are never overwritten. Use AlphaTown ▸ Content ▸ " +
                             "Rebuild Sample Content (overwrite) to reset them to the shipped defaults."
@@ -691,7 +696,11 @@ namespace AlphaTown.EditorTools.Setup
             var serialized = BeginAuthoring<ProducerDefinition>(
                 Root + "/Recipes/Producer_" + id + ".asset", out var asset);
 
-            if (serialized == null) return asset;
+            if (serialized == null)
+            {
+                LinkRecipes(id, asset, recipes);
+                return asset;
+            }
 
             AssetAuthoring.Set(serialized, "_id", id);
             AssetAuthoring.Set(serialized, "_displayNameKey", "producer." + id);
@@ -707,6 +716,51 @@ namespace AlphaTown.EditorTools.Setup
 
             AssetAuthoring.Apply(serialized);
             return asset;
+        }
+
+        /// <summary>
+        /// Merges this generator's recipes into a producer it was told to leave alone.
+        ///
+        /// The skip rule protects tuning, and a producer's tiers are tuning — how big its queue is,
+        /// how fast it runs. Its recipe list is not: it is the link that decides whether a recipe
+        /// this generator just wrote can ever be run by anything. Leaving it alone is how a new
+        /// good ends up sitting in the database with no building able to make it, which is silent
+        /// and looks exactly like the feature never shipping.
+        ///
+        /// So it merges the way the database's own lists do — anything already there stays, in its
+        /// order, and only what is missing is appended. A recipe deliberately removed by hand does
+        /// come back, which is why each one is named in the console rather than done quietly.
+        /// </summary>
+        static void LinkRecipes(string id, ProducerDefinition asset, RecipeDefinition[] recipes)
+        {
+            if (asset == null || recipes == null || recipes.Length == 0) return;
+
+            var missing = new List<string>();
+            for (var i = 0; i < recipes.Length; i++)
+            {
+                if (recipes[i] != null && !Runs(asset, recipes[i].Id)) missing.Add(recipes[i].Id);
+            }
+
+            if (missing.Count == 0) return;
+
+            var serialized = AssetAuthoring.Edit(asset);
+            AssetAuthoring.MergeReferenceArray(serialized, "_recipes", recipes);
+            AssetAuthoring.Apply(serialized);
+
+            _relinked++;
+            Debug.Log("[AlphaTown] Producer '" + id + "' already existed and was missing " +
+                      string.Join(", ", missing.ToArray()) + ". Added, so the recipe can be run.");
+        }
+
+        static bool Runs(ProducerDefinition producer, string recipeId)
+        {
+            var recipes = producer.Recipes;
+            for (var i = 0; i < recipes.Count; i++)
+            {
+                if (recipes[i] != null && recipes[i].Id == recipeId) return true;
+            }
+
+            return false;
         }
 
         static StorageDefinition Storage(string id, int[] capacityPerLevel)

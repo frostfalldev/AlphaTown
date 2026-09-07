@@ -134,6 +134,24 @@ namespace AlphaTown.Tests.EditMode
             Assert.That(Describe(issues), Is.EqualTo(string.Empty));
         }
 
+        /// <summary>
+        /// Bread shipped like this: two flour and a corn for a loaf worth exactly the same. The
+        /// building ran, the timer ticked, the loaf appeared, and the player was no better off.
+        /// </summary>
+        [Test]
+        public void ARecipeWorthNoMoreThanItsInputs_IsAWarning()
+        {
+            var database = Chain()
+                .WithItem(new FakeItem("dough", coinValue: 10))
+                .WithRecipe(new FakeRecipe("knead", TimeSpan.FromMinutes(5),
+                    new[] { new ItemStack(Flour, 2) }, new[] { new ItemStack("dough", 2) },
+                    unlockLevel: 2));
+
+            // Flour is worth 14 in this fixture, so two in is 28 against two dough at 20 out —
+            // five minutes of work to end up behind.
+            AssertHas(database, ContentIssueSeverity.Warning, "knead", "loses the player value");
+        }
+
         [Test]
         public void AnItemNothingProduces_IsAWarning()
         {
@@ -280,9 +298,11 @@ namespace AlphaTown.Tests.EditMode
                 unlockLevel: 2);
 
             return new FakeDatabase()
-                .WithItem(new FakeItem(Wheat, category: ItemCategory.Crop))
-                .WithItem(new FakeItem(Flour, category: ItemCategory.Ingredient))
-                .WithItem(new FakeItem(Bread, category: ItemCategory.FinishedGood))
+                // Values rise along the chain, because a fixture that claims to be content which
+                // joins up has to pay for the work it asks for.
+                .WithItem(new FakeItem(Wheat, coinValue: 3, category: ItemCategory.Crop))
+                .WithItem(new FakeItem(Flour, coinValue: 14, category: ItemCategory.Ingredient))
+                .WithItem(new FakeItem(Bread, coinValue: 34, category: ItemCategory.FinishedGood))
                 .WithRecipe(growWheat)
                 .WithRecipe(millFlour)
                 .WithRecipe(bakeBread)

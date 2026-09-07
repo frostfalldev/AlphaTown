@@ -34,6 +34,7 @@ namespace AlphaTown.Data.Validation
             CheckProducers(database, issues);
             CheckBuildings(database, issues);
             CheckItemFlow(database, issues);
+            CheckMargins(database, issues);
             CheckUnlockOrder(database, issues);
             CheckOrders(database, issues);
             CheckExpansions(database, issues);
@@ -297,6 +298,53 @@ namespace AlphaTown.Data.Validation
             }
 
             return granted;
+        }
+
+        // --- Is it worth running? ----------------------------------------------------------------
+
+        /// <summary>
+        /// A recipe whose outputs are worth no more than its inputs.
+        ///
+        /// This is the quietest content bug there is. Nothing breaks: the building runs, the timer
+        /// ticks, the good appears. It just makes the player poorer for waiting, and the only way
+        /// to notice is to price both sides by hand. Bread shipped like this — two flour and a corn
+        /// for a loaf worth exactly the same — until this check was written.
+        ///
+        /// Bonus output is ignored on purpose. A recipe that only pays when it rolls well is still
+        /// a recipe that does not pay.
+        /// </summary>
+        static void CheckMargins(IGameDatabase database, List<ContentIssue> issues)
+        {
+            var recipes = database.Recipes;
+            if (recipes == null) return;
+
+            for (var i = 0; i < recipes.Count; i++)
+            {
+                var recipe = recipes[i];
+                if (recipe == null || recipe.Inputs.Count == 0) continue;
+
+                var cost = TotalValue(database, recipe.Inputs);
+                if (cost <= 0) continue;
+
+                var made = TotalValue(database, recipe.Outputs);
+                if (made > cost) continue;
+
+                issues.Add(Warning(recipe.Id,
+                    "Inputs are worth " + cost + " and outputs " + made +
+                    ", so running it loses the player value."));
+            }
+        }
+
+        static int TotalValue(IGameDatabase database, IReadOnlyList<ItemStack> stacks)
+        {
+            var total = 0;
+            for (var i = 0; i < stacks.Count; i++)
+            {
+                if (database.TryGetItem(stacks[i].ItemId, out var item))
+                    total += item.CoinValue * stacks[i].Count;
+            }
+
+            return total;
         }
 
         // --- Can it be reached in the order it unlocks? ------------------------------------------

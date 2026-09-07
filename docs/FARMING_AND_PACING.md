@@ -11,11 +11,14 @@ An animal is a producer that eats, and that one input is the whole difference be
 field. A field turns time into goods; livestock turns crops into better ones.
 
 ```
-Wheat ─▶ Feed ─▶ Eggs ──────────────▶ Cake        (patisserie, with flour)
-            ├──▶ Milk ──────────────▶ Cheese      (creamery)
-            ├──▶ Goat milk ────────▶ Goat cheese  (creamery)
-            ├──▶ Duck meat ────────▶ Roast duck   (kitchen, with corn)
-            └──▶ Bacon ────────────▶ Bacon pie    (kitchen, with flour and cheese)
+Wheat ─▶ Feed ─┬──▶ Eggs ───────▶ Cake        (patisserie, with flour)
+               ├──▶ Milk ───────▶ Cheese      (creamery)
+               ├──▶ Goat milk ──▶ Goat cheese (creamery)
+               ├──▶ Duck meat ──▶ Roast duck  (kitchen, with corn)
+               ├──▶ Bacon ──────▶ Bacon pie   (kitchen, with flour and cheese)
+               └──▶ Wool ───┐
+                            ├──▶ Fabric ──▶ Clothes  (weavery, then tailor)
+Cotton ─────────────────────┘
 ```
 
 Every branch terminates in something a board wants. That is a rule, not a coincidence: an animal
@@ -23,6 +26,10 @@ whose produce no recipe consumes can only be sold back at the market's 35%, whic
 worse deal the more it cost — the exact opposite of what the level ladder is promising. The
 content validator warns on any animal good that is made and then wanted by nothing, because this
 was wrong in the shipped content until the kitchen existed to fix it.
+
+The wool branch is the one that is not food, and it is the only chain that needs a crop and a pen
+together: three cotton and a wool make one fabric. It exists because levels 7 and 8 unlocked
+nothing — the ladder ran out at the pig pen two levels before the XP curve did.
 
 Nothing in the simulation knows what an animal is. A coop is a producer whose recipe happens to
 have an input, so it runs through exactly the machinery a bakery does — feed consumed when the

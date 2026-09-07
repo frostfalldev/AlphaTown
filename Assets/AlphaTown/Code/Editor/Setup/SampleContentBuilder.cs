@@ -173,6 +173,16 @@ namespace AlphaTown.EditorTools.Setup
             var roastDuck = Item("roast_duck", ItemCategory.FinishedGood, coinValue: 62, xpValue: 28);
             var baconPie = Item("bacon_pie", ItemCategory.FinishedGood, coinValue: 250, xpValue: 105);
 
+            // Levels 7 and 8 unlocked nothing at all: the ladder ran out at the pig pen while the
+            // curve kept going. The textile chain fills them, and it is deliberately not food —
+            // every branch so far ends in something edible, so a second kind of thing to make is
+            // worth more than a sixth kind of dinner. It also gives the field a job after level 2,
+            // which is otherwise the last time farming changes.
+            var cotton = Item("cotton", ItemCategory.Crop, coinValue: 11, xpValue: 5);
+            var wool = Item("wool", ItemCategory.AnimalProduce, coinValue: 50, xpValue: 22);
+            var fabric = Item("fabric", ItemCategory.Ingredient, coinValue: 133, xpValue: 56);
+            var clothes = Item("clothes", ItemCategory.FinishedGood, coinValue: 506, xpValue: 210);
+
             // Deeds are unstorable on purpose: they are a currency wearing an item's clothes, and
             // charging barn space for the thing that buys more land would be a cruel joke.
             var deed = Item("land_deed", ItemCategory.Special, coinValue: 0, xpValue: 0, storable: false);
@@ -190,8 +200,10 @@ namespace AlphaTown.EditorTools.Setup
                 inputs: new[] { new Ingredient(wheat, 3) },
                 outputs: new[] { new Ingredient(flour, 1) });
 
+            // One flour, not two. At two the loaf was worth exactly what it ate — five minutes of
+            // baking for no gain — which made the bakery a place goods went to stop being useful.
             var bakeBread = Recipe("bake_bread", 300, unlockLevel: 3,
-                inputs: new[] { new Ingredient(flour, 2), new Ingredient(corn, 1) },
+                inputs: new[] { new Ingredient(flour, 1), new Ingredient(corn, 1) },
                 outputs: new[] { new Ingredient(bread, 1) });
 
             var millFeed = Recipe("mill_feed", 45, unlockLevel: 2,
@@ -249,10 +261,29 @@ namespace AlphaTown.EditorTools.Setup
                 inputs: new[] { new Ingredient(bacon, 2), new Ingredient(flour, 1), new Ingredient(cheese, 1) },
                 outputs: new[] { new Ingredient(baconPie, 1) });
 
+            // Cotton arrives a level before the animal that pairs with it, so the field is already
+            // stocking up by the time there is anywhere to take it.
+            var growCotton = Recipe("grow_cotton", 240, unlockLevel: 5,
+                outputs: new[] { new Ingredient(cotton, 2) }, bonusOutputMax: 1);
+
+            var shearSheep = Recipe("shear_sheep", 1800, unlockLevel: 7,
+                inputs: new[] { new Ingredient(feed, 5) },
+                outputs: new[] { new Ingredient(wool, 2) }, bonusOutputMax: 1);
+
+            // Cotton is the bulk of it and wool the expensive part, so a run wants the field and
+            // the pen both — which is the point of putting a chain this late in the curve.
+            var spinFabric = Recipe("spin_fabric", 1200, unlockLevel: 7,
+                inputs: new[] { new Ingredient(cotton, 3), new Ingredient(wool, 1) },
+                outputs: new[] { new Ingredient(fabric, 1) });
+
+            var sewClothes = Recipe("sew_clothes", 2400, unlockLevel: 8,
+                inputs: new[] { new Ingredient(fabric, 2), new Ingredient(wool, 1) },
+                outputs: new[] { new Ingredient(clothes, 1) });
+
             // --- Producers ---------------------------------------------------------------------
             // Level 2 is where auto-replant arrives: the field keeps sowing itself once the player
             // has emptied it, which is the upgrade that turns a chore into a routine.
-            var field = Producer("field", new[] { growWheat, growCorn }, new[]
+            var field = Producer("field", new[] { growWheat, growCorn, growCotton }, new[]
             {
                 new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
                 new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1.25f, autoRepeat: true)
@@ -317,6 +348,24 @@ namespace AlphaTown.EditorTools.Setup
             {
                 new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
                 new ProducerTier(queueCapacity: 4, parallelSlots: 2, speed: 1.2f, autoRepeat: false)
+            });
+
+            var sheep = Producer("sheep", new[] { shearSheep }, new[]
+            {
+                new ProducerTier(queueCapacity: 1, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 2, parallelSlots: 2, speed: 1.3f, autoRepeat: true)
+            });
+
+            var weavery = Producer("weavery", new[] { spinFabric }, new[]
+            {
+                new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 4, parallelSlots: 2, speed: 1.25f, autoRepeat: false)
+            });
+
+            var tailor = Producer("tailor", new[] { sewClothes }, new[]
+            {
+                new ProducerTier(queueCapacity: 2, parallelSlots: 1, speed: 1f, autoRepeat: false),
+                new ProducerTier(queueCapacity: 3, parallelSlots: 2, speed: 1.3f, autoRepeat: false)
             });
 
             // --- Storage and progression -------------------------------------------------------
@@ -416,6 +465,36 @@ namespace AlphaTown.EditorTools.Setup
                 },
                 placeholder: new Color(0.84f, 0.56f, 0.40f));
 
+            var sheepBuilding = Building("sheep_pen", BuildingCategory.Livestock, 3, 3, sheep,
+                unlockLevel: 7,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 1200, coins: coins, coinCost: 14000, xpReward: 500),
+                    new BuildingTier(constructionSeconds: 3000, coins: coins, coinCost: 38000, xpReward: 1200)
+                },
+                placeholder: new Color(0.82f, 0.84f, 0.88f));
+
+            var weaveryBuilding = Building("weavery", BuildingCategory.Production, 3, 2, weavery,
+                unlockLevel: 7,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 1500, coins: coins, coinCost: 16000, xpReward: 560),
+                    new BuildingTier(constructionSeconds: 3600, coins: coins, coinCost: 42000, xpReward: 1300)
+                },
+                placeholder: new Color(0.58f, 0.66f, 0.76f));
+
+            // The last thing in the game, and the only building gated on level 8. Everything the
+            // tailor needs comes from two other buildings the player had to raise first, so
+            // reaching it means the whole town is running rather than one good chain.
+            var tailorBuilding = Building("tailor", BuildingCategory.Production, 3, 3, tailor,
+                unlockLevel: 8,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 2400, coins: coins, coinCost: 30000, xpReward: 950),
+                    new BuildingTier(constructionSeconds: 5400, coins: coins, coinCost: 75000, xpReward: 2200)
+                },
+                placeholder: new Color(0.66f, 0.48f, 0.62f));
+
             // Decorations produce nothing and store nothing. They exist to be somewhere for coins
             // to go, and they pay XP for it — without that reward there would be no reason to
             // raise one, which is why construction XP had to exist before these could.
@@ -445,6 +524,16 @@ namespace AlphaTown.EditorTools.Setup
                     new BuildingTier(constructionSeconds: 60, coins: coins, coinCost: 2000, xpReward: 120)
                 },
                 placeholder: new Color(0.62f, 0.74f, 0.86f));
+
+            // The late coin sink. By level 6 an order run pays more than anything left to build,
+            // and coins with nowhere to go stop being a reward — so there is one deliberately
+            // expensive thing to want that pays only XP for it.
+            var clockTower = Building("clock_tower", BuildingCategory.Decoration, 2, 2, null, unlockLevel: 6,
+                new[]
+                {
+                    new BuildingTier(constructionSeconds: 600, coins: coins, coinCost: 12000, xpReward: 500)
+                },
+                placeholder: new Color(0.74f, 0.70f, 0.58f));
 
             var flowerBed = Building("flower_bed", BuildingCategory.Decoration, 1, 1, null, unlockLevel: 1,
                 new[]
@@ -531,19 +620,21 @@ namespace AlphaTown.EditorTools.Setup
             Register(serialized, "_items", new Object[]
             {
                 wheat, corn, feed, eggs, milk, goatMilk, duckMeat, bacon,
-                flour, bread, cheese, cake, goatCheese, roastDuck, baconPie, deed
+                flour, bread, cheese, cake, goatCheese, roastDuck, baconPie,
+                cotton, wool, fabric, clothes, deed
             });
             Register(serialized, "_recipes", new Object[]
             {
                 growWheat, growCorn, millFeed,
                 collectEggs, collectMilk, collectGoatMilk, raiseDucks, raisePigs,
                 millFlour, makeCheese, makeGoatCheese, bakeBread, bakeCake,
-                cookRoastDuck, bakeBaconPie
+                cookRoastDuck, bakeBaconPie,
+                growCotton, shearSheep, spinFabric, sewClothes
             });
             Register(serialized, "_producers", new Object[]
             {
-                field, coop, dairy, goats, ducks, pigs, mill, creamery, bakery, patisserie,
-                kitchen
+                field, coop, dairy, goats, ducks, pigs, sheep,
+                mill, creamery, bakery, patisserie, kitchen, weavery, tailor
             });
             Register(serialized, "_storages", new Object[] { barn });
             Register(serialized, "_currencies", new Object[] { coins, gems });
@@ -552,8 +643,9 @@ namespace AlphaTown.EditorTools.Setup
             Register(serialized, "_buildings", new Object[]
             {
                 plot, coopBuilding, dairyBuilding, goatBuilding, duckBuilding, pigBuilding,
-                millBuilding, creameryBuilding, bakeryBuilding, patisserieBuilding,
-                kitchenBuilding, granary, flowerBed, fountain
+                sheepBuilding, millBuilding, creameryBuilding, bakeryBuilding, patisserieBuilding,
+                kitchenBuilding, weaveryBuilding, tailorBuilding,
+                granary, flowerBed, fountain, clockTower
             });
             Register(serialized, "_orderBoards", new Object[] { board, trainBoard, shipBoard });
             Register(serialized, "_expansions", new Object[] { north, east, northEast });

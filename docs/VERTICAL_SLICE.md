@@ -64,11 +64,14 @@ Every generate run ends by validating the database it just wrote, and **AlphaTow
 Validate Content** runs the same pass on demand. It reads the whole graph and reports what does
 not join up: a recipe that wants an item nothing makes, a producer no building runs, a good that
 is made and then wanted by nothing, a recipe that unlocks before its own inputs can exist, a board
-that opens with no template of its kind, a new game that starts you with an item that was deleted.
+that opens with no template of its kind, a new game that starts you with an item that was deleted,
+a recipe whose outputs are worth no more than what it eats.
 
 None of those throw. The game runs, and the player finds a pen that produces something they can
 only sell back at a loss — which is exactly the bug that was in this content until the kitchen was
-added. It costs one console line to know instead.
+added. Bread was worse: two flour and a corn for a loaf worth exactly the same, so the bakery paid
+nothing for five minutes of waiting, and there was no way to notice but to price both sides by
+hand. It costs one console line to know instead.
 
 **The build refuses to run on a graph with errors.** `build-android.sh` validates after the
 content and scene steps and before compiling the player, because a broken graph does not fail a
@@ -172,19 +175,19 @@ Four field plots, 500 coins, 10 gems, 4 wheat, and a 50-space barn on an 8×8 pa
 
 | | |
 | --- | --- |
-| Crops | Wheat (60s), Corn (180s, level 2) |
-| Livestock | Hens (2), cows (3), goats (4), ducks (5), pigs (6) — all eat feed |
-| Chains | Wheat ▸ Feed ▸ the five animal goods<br>Wheat ▸ Flour ▸ Bread · Flour + Eggs ▸ Cake<br>Milk ▸ Cheese · Goat milk ▸ Goat cheese<br>Duck meat + Corn ▸ Roast duck · Bacon + Flour + Cheese ▸ Bacon pie |
-| Decorations | Flower bed (level 1) upgrading into a fountain (level 3) |
+| Crops | Wheat (60s), Corn (180s, level 2), Cotton (240s, level 5) |
+| Livestock | Hens (2), cows (3), goats (4), ducks (5), pigs (6), sheep (7) — all eat feed |
+| Chains | Wheat ▸ Feed ▸ the six animal goods<br>Wheat ▸ Flour ▸ Bread · Flour + Eggs ▸ Cake<br>Milk ▸ Cheese · Goat milk ▸ Goat cheese<br>Duck meat + Corn ▸ Roast duck · Bacon + Flour + Cheese ▸ Bacon pie<br>Cotton + Wool ▸ Fabric ▸ Clothes |
+| Decorations | Flower bed (level 1) upgrading into a fountain (level 3), clock tower (level 6) |
 | Orders | Helicopter: 4 slots, 2–5 min, 30% deed chance<br>Train (level 3): 3 slots, 15–40 min, 2.6x coins, 60% for two deeds<br>Ship (level 5): 2 slots, 2–3 hours, 3.6x coins, always three deeds |
 | Land | Three 8×8 parcels gated on 1, 2 and 3 deeds plus coins |
 | Levels | Eight, at 60 / 150 / 320 / 620 / 1100 / 1900 / 3200 / 5000 XP |
 
-Fourteen buildings: `field_plot`, `chicken_coop`, `dairy_shed`, `goat_pen`, `duck_pond`,
-`pig_pen`, `mill_house`, `creamery`, `bakery`, `patisserie`, `kitchen`, `granary`, `flower_bed`,
-`fountain`.
+Eighteen buildings: `field_plot`, `chicken_coop`, `dairy_shed`, `goat_pen`, `duck_pond`,
+`pig_pen`, `sheep_pen`, `mill_house`, `creamery`, `bakery`, `patisserie`, `kitchen`, `weavery`,
+`tailor`, `granary`, `flower_bed`, `fountain`, `clock_tower`.
 
-The five pens ladder across the whole level curve, and feed cost rises with what the animal is
+The six pens ladder across the whole level curve, and feed cost rises with what the animal is
 worth — one sack for hens, five for pigs. A hen is a habit; a pig is a commitment.
 
 | Animal | Unlocks | Feed | Time | Produces | Which becomes |
@@ -194,6 +197,14 @@ worth — one sack for hens, five for pigs. A hen is a habit; a pig is a commitm
 | Goats | 4 | 2 | 10 min | Goat milk | Goat cheese, at the creamery |
 | Ducks | 5 | 3 | 15 min | Duck meat | Roast duck, at the kitchen |
 | Pigs | 6 | 5 | 25 min | Bacon | Bacon pie, at the kitchen |
+| Sheep | 7 | 5 | 30 min | Wool | Fabric, at the weavery |
+
+Levels 7 and 8 used to unlock nothing at all — the ladder ran out at the pig pen while the XP
+curve kept going for two more levels. The **textile chain** fills them, and it is deliberately not
+food: cotton grows in the field from level 5, sheep arrive at 7, the **weavery** spins three cotton
+and a wool into fabric, and the **tailor** at level 8 is the only building in the game gated that
+high. Everything it needs comes from two other buildings the player had to raise first, so
+reaching it means the whole town is running rather than one good chain.
 
 Every animal good is wanted by something. That last column used to end at goat milk: the three
 most expensive pens in the game made goods that no recipe consumed, so the only thing to do with

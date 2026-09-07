@@ -1,0 +1,19 @@
+{
+    "name": "AlphaTown.UI",
+    "rootNamespace": "AlphaTown.UI",
+    "references": [
+        "AlphaTown.Core",
+        "AlphaTown.Data",
+        "AlphaTown.Services",
+        "AlphaTown.Gameplay"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

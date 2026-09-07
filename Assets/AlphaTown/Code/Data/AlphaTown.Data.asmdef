@@ -1,0 +1,16 @@
+{
+    "name": "AlphaTown.Data",
+    "rootNamespace": "AlphaTown.Data",
+    "references": [
+        "AlphaTown.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
